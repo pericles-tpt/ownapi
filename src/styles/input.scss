@@ -1,0 +1,37 @@
+select {
+    all: unset;
+    border: $oq-pad solid $gray;
+    padding: $base-pad;
+    border-radius: $tq-pad;
+    appearance: auto;
+    background-color: $white;
+    color: $gray
+}
+
+div {
+    display: flex;
+    flex-direction: column;
+
+    &[radio-row] {
+        flex-direction: row;
+        justify-content: space-around;
+    }
+
+    label {
+        all: unset;
+        font-weight: bold;
+        font-size: $font-xlarge;
+    }
+    input:not([type='checkbox']):not([type='radio']) {
+        all: unset;
+        border: $oq-pad solid $gray;
+        padding: $base-pad;
+        border-radius: $tq-pad;
+        background-color: $white;
+        color: $gray;
+
+        &[search], &[tags] {
+            margin-bottom: $two-pad;
+        }
+    }
+}

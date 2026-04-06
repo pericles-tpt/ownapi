@@ -1,0 +1,27 @@
+{
+  "name": "projected",
+  "version": "1.0.0",
+  "description": "",
+  "main": "webpack.config.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "sass": "^1.77.6",
+    "ts-loader": "^9.5.1",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.6.0",
+    "@sigma/node-image": "^3.0.0-beta.12",
+    "axios": "^1.13.6",
+    "css-loader": "^7.1.2",
+    "graphology": "^0.25.4",
+    "sass-loader": "^14.2.1",
+    "sigma": "^3.0.0-beta.28",
+    "spin.js": "^4.1.1",
+    "style-loader": "^4.0.0"
+  }
+}

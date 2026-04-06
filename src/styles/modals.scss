@@ -1,0 +1,138 @@
+div[modal-bg] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: $z-modal-bg;
+
+    background-color: $opaque-grey;
+}
+
+div[modal] {
+	position: absolute;
+    display:flex;
+    flex-direction: column;
+	z-index: $z-modal;
+    width: 60%;
+    height: 80%;
+    left: 20%;
+    top: 10%;
+    border-radius: $base-pad;
+	padding: $two-pad;
+
+    border: $border-width solid $black;
+	background: $white;
+
+    *:not(button) {
+        background-color: $white;
+        color: $black;
+    }
+
+    &[mini] {
+        left: 40%;
+        width: calc(20% - (2 * $two-pad));
+        height: calc(40% - (2 * $two-pad));
+        top: 30%;
+
+        &[success] {
+            [modal-content] {
+                color: $green;
+                font-weight: bold;
+            }
+        }
+
+        &[error] {
+            [modal-content] {
+                color: $red;
+                font-weight: bold;
+            }
+        }
+    }
+    @media (min-width: 300px) and (max-width: 950px) {
+        &[mini] {
+            left: 10%;
+            width: calc(80% - (2 * $two-pad));
+            height: calc(40% - (2 * $two-pad));
+            top: 30%;
+        }
+    }
+
+    div[modal-header] {
+        display: flex;
+        flex-direction: row;
+        font-weight: bold;
+        margin-bottom: $two-pad;
+
+        > * {
+            font-size: $font-xlarge;
+        }
+
+        [close] {
+            margin-left: auto;
+            cursor: pointer;
+        }
+    }
+
+    div[modal-content] {
+        height:100%;
+        position: relative;
+        flex-grow: 1;
+        overflow-y: scroll;
+
+        h2 {
+            font-size: $font-large;
+        }
+
+        p {
+            font-size: $font-medium;
+        }
+
+        > * {
+            height: 100%;
+            width: 100%;
+            @media (orientation: landscape) {
+                height:100%;
+                width: auto;
+            }
+        }
+    }
+
+    div[modal-footer] {
+        display: flex;
+        flex-direction: row;
+
+        button {
+            all: unset;
+            margin-left: auto;
+            padding: $base-pad;
+            border-radius: $tq-pad;
+            background-color: $gray;
+            color: $white;
+            cursor: pointer;
+            
+            &[ok] {
+                background-color: $blue;
+            }
+
+            &[submit] {
+                background-color: $green;
+            }
+        }
+
+        div[error] {
+            color:$red;
+        }
+    }
+}
+@media (min-width: 300px) and (max-width: 950px) {
+    div[modal] {
+        border-radius: 0;
+        width: initial;
+        height: initial;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        right: 0;
+    }
+}
