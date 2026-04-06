@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pericles-tpt/ownapi2/setup"
+	"github.com/pericles-tpt/ownapi/setup"
 	"github.com/pkg/errors"
 )
 

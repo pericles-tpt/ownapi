@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/pericles-tpt/ownapi2/config"
+	"github.com/pericles-tpt/ownapi/config"
 	"github.com/pericles-tpt/rterror"
 )
 

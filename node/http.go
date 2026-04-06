@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pericles-tpt/ownapi2/secrets"
-	"github.com/pericles-tpt/ownapi2/utility"
+	"github.com/pericles-tpt/ownapi/secrets"
+	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
 )
 

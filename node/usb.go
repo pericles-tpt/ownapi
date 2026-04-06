@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pericles-tpt/ownapi2/utility"
+	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
 )
 

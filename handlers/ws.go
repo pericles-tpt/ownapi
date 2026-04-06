@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/pericles-tpt/ownapi2/pipelines"
-	"github.com/pericles-tpt/ownapi2/utility"
+	"github.com/pericles-tpt/ownapi/pipelines"
+	"github.com/pericles-tpt/ownapi/utility"
 )
 
 func OpenClientWS(w http.ResponseWriter, r *http.Request) {
