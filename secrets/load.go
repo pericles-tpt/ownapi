@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/pericles-tpt/ownapi2/utility"
+	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"

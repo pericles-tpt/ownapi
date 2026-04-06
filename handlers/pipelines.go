@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/websocket"
-	"github.com/pericles-tpt/ownapi2/pipelines"
+	"github.com/pericles-tpt/ownapi/pipelines"
 )
 
 var upgrader = websocket.Upgrader{

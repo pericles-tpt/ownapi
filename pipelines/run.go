@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pericles-tpt/ownapi2/node"
+	"github.com/pericles-tpt/ownapi/node"
 	"github.com/pkg/errors"
 )
 
