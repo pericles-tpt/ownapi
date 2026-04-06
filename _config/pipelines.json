@@ -1,0 +1,281 @@
+{
+    "weatherPipeline": {
+        "nodes": [
+        [
+            {
+                "hash": "94d6b0f97db823199ccc420a984306440fd557e9",
+                "config": {
+                    "raw_url": "https://api.bom.gov.au/apikey/v1/locations/places/autocomplete",
+                    "raw_url_path_parts": null,
+                    "method": "GET",
+                    "headers": null,
+                    "query_params": {
+                        "name": "Ashfield"
+                    },
+                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                    "use_head_and_cache_responses": true,
+                    "output_key": "output:json"
+                },
+                "cache_check": {
+                    "last_modified": null,
+                    "last_modified_as_etag": null,
+                    "etag": ""
+                }
+            }
+        ],
+        [
+            {
+                "hash": "b31535ace08d223797558c09359f8ef3813eb28b",
+                "config": {
+                    "input_key": "input:json",
+                    "extract_nodes": [
+                        {
+                            "nested_key": [
+                                {
+                                    "key": "candidates",
+                                    "index": null
+                                }
+                            ],
+                            "value": null,
+                            "output_key": null
+                        },
+                        {
+                            "nested_key": [
+                                {
+                                    "key": "postcode",
+                                    "index": null
+                                },
+                                {
+                                    "key": "name",
+                                    "index": null
+                                }
+                            ],
+                            "value": "2131",
+                            "output_key": null
+                        },
+                        {
+                            "nested_key": [
+                                {
+                                    "key": "id",
+                                    "index": null
+                                }
+                            ],
+                            "value": null,
+                            "output_key": "id"
+                        },
+                        {
+                            "nested_key": [
+                                {
+                                    "key": "timezone",
+                                    "index": null
+                                }
+                            ],
+                            "value": null,
+                            "output_key": "4:timezone"
+                        }
+                    ]
+                }
+            }
+        ],
+        [
+            {
+                "hash": "15458b2e0d58618e3609a76211daadada5493aa0",
+                "config": {
+                    "raw_url": "https://api.bom.gov.au/apikey/v1/locations/places/details/place",
+                    "raw_url_path_parts": [
+                        "input:id"
+                    ],
+                    "method": "GET",
+                    "headers": null,
+                    "query_params": {
+                        "filter": "nearby_type:bom_stn,capability:SENSOR_TEMPERATURE_DB,match_coastal_status:true",
+                        "nearby_limit": "0",
+                        "radius": "100000"
+                    },
+                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                    "use_head_and_cache_responses": true,
+                    "output_key": "output:3:json2"
+                },
+                "cache_check": {
+                    "last_modified": null,
+                    "last_modified_as_etag": null,
+                    "etag": ""
+                }
+            }
+        ],
+        [
+            {
+                "hash": "11dd41bca61c98476e773b46ce5811e5823a50ae",
+                "config": {
+                    "input_key": "input:json2",
+                    "extract_nodes": [
+                        {
+                            "nested_key": [
+                                {
+                                    "key": "place",
+                                    "index": null
+                                }
+                            ],
+                            "value": null,
+                            "output_key": null
+                        },
+                        {
+                            "nested_key": [
+                                {
+                                    "key": "gridcells",
+                                    "index": null
+                                },
+                                {
+                                    "key": "forecast",
+                                    "index": null
+                                },
+                                {
+                                    "key": "x",
+                                    "index": null
+                                }
+                            ],
+                            "value": null,
+                            "output_key": "x"
+                        },
+                        {
+                            "nested_key": [
+                                {
+                                    "key": "gridcells",
+                                    "index": null
+                                },
+                                {
+                                    "key": "forecast",
+                                    "index": null
+                                },
+                                {
+                                    "key": "y",
+                                    "index": null
+                                }
+                            ],
+                            "value": null,
+                            "output_key": "y"
+                        }
+                    ]
+                }
+            }
+        ],
+        [
+            {
+                "hash": "0e3d0d0bed33f1daa0ceb26718eb69d9958c9ecd",
+                "config": {
+                    "raw_url": "https://api.bom.gov.au/apikey/v1/forecasts/1hourly",
+                    "raw_url_path_parts": [
+                        "input:x",
+                        "input:y"
+                    ],
+                    "method": "GET",
+                    "headers": null,
+                    "query_params": {
+                        "timezone": "input:timezone"
+                    },
+                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                    "use_head_and_cache_responses": true,
+                    "output_key": "output:json1Hourly"
+                },
+                "cache_check": {
+                    "last_modified": null,
+                    "last_modified_as_etag": null,
+                    "etag": ""
+                }
+            },
+            {
+                "hash": "c5f2195f7df9a2c180d472c901c28ad6a4cfea3b",
+                "config": {
+                    "raw_url": "https://api.bom.gov.au/apikey/v1/forecasts/3hourly",
+                    "raw_url_path_parts": [
+                        "input:x",
+                        "input:y"
+                    ],
+                    "method": "GET",
+                    "headers": null,
+                    "query_params": {
+                        "timezone": "input:timezone"
+                    },
+                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                    "use_head_and_cache_responses": true,
+                    "output_key": "output:json3Hourly"
+                },
+                "cache_check": {
+                    "last_modified": null,
+                    "last_modified_as_etag": null,
+                    "etag": ""
+                }
+            },
+            {
+                "hash": "49d2c02a9696bd0da00ae59a529bbfd0e168f067",
+                "config": {
+                    "raw_url": "https://api.bom.gov.au/apikey/v1/forecasts/daily",
+                    "raw_url_path_parts": [
+                        "input:x",
+                        "input:y"
+                    ],
+                    "method": "GET",
+                    "headers": null,
+                    "query_params": {
+                        "timezone": "input:timezone"
+                    },
+                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                    "use_head_and_cache_responses": true,
+                    "output_key": "output:jsonDaily"
+                },
+                "cache_check": {
+                    "last_modified": null,
+                    "last_modified_as_etag": null,
+                    "etag": ""
+                }
+            }
+        ]
+    ],
+    "nodeTypes": [
+        [
+            0
+        ],
+        [
+            1
+        ],
+        [
+            0
+        ],
+        [
+            1
+        ],
+        [
+            0,0,0
+        ]
+    ]
+    },
+    "transportPipeline": {
+        "nodes": [
+        [
+            {
+                "hash": "64f4da0b599fcc8866b522ab1be635f7a444fdd9",
+                "config": {
+                    "raw_url": "https://api.transport.nsw.gov.au/v1/gtfs/realtime/buses",
+                    "raw_url_path_parts": null,
+                    "method": "GET",
+                    "headers": {
+                        "Authorization": "apikey secret:transport_nsw_key",
+                        "accept": "application/x-google-protobuf"
+                    },
+                    "query_params": null,
+                    "user_agent": null,
+                    "use_head_and_cache_responses": true,
+                    "output_key": "output:bus_info"
+                },
+                "cache_check": {
+                    "last_modified": null,
+                    "last_modified_as_etag": null,
+                    "etag": ""
+                }
+            }
+        ]
+    ],
+    "nodeTypes": [[0]]
+    }
+    
+}

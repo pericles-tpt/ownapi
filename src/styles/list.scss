@@ -1,0 +1,24 @@
+[items-list] {
+    height: 100%;
+    overflow:scroll;
+
+    [message] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        height: inherit;
+    }
+
+    [items] {
+        display: flex;
+        flex-direction: column;
+        justify-content: start;
+
+        > * {
+            &:not(:last-of-type) {
+                margin-bottom: $base-pad;
+            }
+        }
+    }
+}

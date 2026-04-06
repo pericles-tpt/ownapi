@@ -1,0 +1,11 @@
+._*
+node_modules/*
+.env
+_data/*
+_config/legacy
+_legacy
+_sample_data
+dist/*
+ownapi*
+.DS_Store
+secrets.txt

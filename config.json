@@ -1,0 +1,11 @@
+{
+    "appName": "ownapi",
+    "backendURL": "",
+    "localBackendURL": "localhost:8080",
+    "frontendURL": "",
+    "localFrontendURL": "localhost:5000",
+    "corsOptions": {
+        "allowedMethods": ["GET", "PUT", "OPTIONS"],
+        "allowedOrigins": []
+    }
+}

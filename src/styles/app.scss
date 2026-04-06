@@ -1,0 +1,180 @@
+// APP SPECIFIC STYLING - i.e. related to elements managed by app.ts
+header {
+    &[has-pinned] {
+        color: $light-color;
+        background-color: lightyellow;
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+    }
+
+    button[expand-collapse], button[unpin] {
+        margin-left:auto;
+        padding: 0;
+
+        * {
+            color: $light-color;
+            &[light-mode] {
+                color:$dark-color;
+            }
+        }
+    }
+    button[unpin] {
+        margin-left: $two-pad;
+    }
+}
+
+[pinned-note] {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    
+    background-color: lightyellow;
+    color: $black;
+
+    width: 100%;
+    left: 0;
+    top: 0;
+    height: auto;
+
+    
+    [note] {
+        font-size: $font-large;
+    }
+
+    [actions] {
+        display: flex;
+        flex-direction: row;
+    }
+}
+
+[item-card] {
+    // unset, from [card-stack]
+    text-align: left;
+    font-weight: normal;
+
+    position: absolute;
+    padding: $base-pad;
+    border: $oq-pad solid $black;
+    border-radius: $tq-pad;
+    width: calc(100% - (2 * ($base-pad + $oq-pad)));
+
+    
+    color: $black;
+    background-color: $white;
+    * {
+        background-color: $white;
+        color: $black;
+    }
+
+    &[list-view] {
+        position: unset;
+    }
+    
+    [label-row] {
+        display: flex;
+        flex-direction: row;
+        padding-bottom: $base-pad;
+    }
+
+    p {
+        border-bottom: $oq-pad solid $black;
+        padding: $base-pad;
+        margin: 0;
+        margin-bottom: $base-pad;
+        font-weight: bold;
+        text-align: center;
+    }
+    
+    [mask] {
+        position: absolute;
+        background-color: $black;
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+
+        * {
+            color: $white;
+        }
+    }
+    
+    [status] {
+        position: inherit;
+        top: $oq-pad;
+        right: $oq-pad;
+        padding: $tq-pad;
+        border-radius: 50%;
+        background-color: $red;
+        * {
+            background-color: $red;
+            color: $white;
+        }
+
+        &[linked] {
+            background-color: $gray;
+            * {
+                background-color: $gray;
+            }
+        }
+
+        &[saved] {
+            background-color: $green;
+            * {
+                background-color: $green;
+            }
+        }
+
+        &[scheduled] {
+            background-color: $blue;
+            * {
+                background-color: $blue;
+            }
+        }
+    }
+
+    [type] {
+        display: block;
+        margin-right: auto;
+        position: relative;
+        top: $oq-pad;
+        left: $oq-pad;
+        padding: $tq-pad;
+        background-color: $gray;
+        color: $white;
+        border-radius: $tq-pad;
+        * {
+            background-color: $gray;
+            color: $white;
+        }
+    }
+
+    [tag-row] {
+        display: flex;
+        flex-direction: row;
+        align-items: start;
+
+        border-top: $oq-pad solid $black;
+        padding: $base-pad;
+        margin: 0;
+        margin-top: $base-pad;
+
+        > div {
+            background-color: $gray;
+            color: $white;
+            padding: $half-pad;
+            border-radius: $tq-pad;
+
+            &:not(:last-of-type) {
+                margin-right: $base-pad;
+            }
+        }
+    }
+    
+    &[webpage] {
+        height: calc(100% - (2 * ($base-pad + $border-width)))
+    }
+}
+[search] {
+    margin-bottom: $base-pad;
+}
