@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	gomtp "github.com/pericles-tpt/go-mtp"
 	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
 )
@@ -27,8 +28,8 @@ type USBNode struct {
 type USBProtocol int
 
 const (
-	MassStorage USBProtocol = iota
-	MTP
+	MTP USBProtocol = iota
+	// MassStorage
 
 	// Permissions
 	PERM_GET = 1
@@ -48,51 +49,29 @@ func CreateUSBNode(propMap map[string]any, cfg USBNodeConfig) (USBNode, error) {
 
 	err = ret.verifyAccess()
 	if err != nil {
-		return ret, errors.Wrapf(err, "failed to verify access to USB device - serial: %s, protocol: %v, root_scope: %s", ret.Config.SerialNo, ret.Config.Protocol, ret.Config.RootScope)
+		return ret, errors.Wrap(err, "failed to verify access to USB device")
 	}
 
 	err = ret.generateNewHash()
 	if err != nil {
-		return ret, errors.Wrap(err, "failed to generate hash for new `HttpNodeConfig`")
+		return ret, errors.Wrap(err, "failed to generate hash for new `USBNodeConfig`")
 	}
 
 	return ret, nil
 }
 
 func (un *USBNode) verifyAccess() error {
-	// TODO: Check that:
-	// 1. Device with serial number exists
-	// ctx := gousb.NewContext()
-	// defer ctx.Close()
-
-	// devs, err := ctx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
-	// 	return true
-	// })
-	// if err != nil {
-	// 	return errors.Wrapf(err, "failed to retrieve usb devices")
-	// }
-
-	// var targetDev *gousb.Device
-	// for _, d := range devs {
-	// 	sn, err := d.SerialNumber()
-	// 	if err == nil && sn == un.Config.SerialNo {
-	// 		targetDev = d
-	// 		break
-	// 	}
-	// }
-	// if targetDev == nil {
-	// 	// TODO: Improve this, the loop above could catch errors but idk which error will correspond to the device
-	// 	// 		 with the target serial number
-	// 	return fmt.Errorf("failed to find or access device matching serial number: %s", un.Config.SerialNo)
-	// }
-
-	// 2. It can be accessed over protocol
-
-	// 3. The scope directory can be accessed
-	// 4. Recv permissions are valid
-	// 5. Send permissions are valid
-
-	return errors.New("UNIMPLEMENTED")
+	switch un.Config.Protocol {
+	case MTP:
+		dev, err := gomtp.GetDeviceBySerialNumber(un.Config.SerialNo)
+		if err != nil {
+			return errors.Wrapf(err, "failed to access device over MTP with serial no: %s", un.Config.SerialNo)
+		}
+		dev.ReleaseDevice()
+	default:
+		return fmt.Errorf("failed to verify access for USB protocol: %v", un.Config.Protocol)
+	}
+	return nil
 }
 
 func (un *USBNode) generateNewHash() error {
@@ -122,5 +101,58 @@ func (un *USBNode) generateNewHash() error {
 	newHashBytes := hash.Sum(nil)
 
 	un.Hash = fmt.Sprintf("%x", newHashBytes)
+	return nil
+}
+
+func (un *USBNode) Transfer(src string, dest string) error {
+	destInData := fmt.Sprintf("./_data/files/%s", dest)
+	err := os.Mkdir(destInData, 0760)
+	if err != nil {
+		if !os.IsExist(err) {
+			return errors.Wrap(err, "failed to create dest folder")
+		} else {
+			// TODO: Remove this later
+			os.RemoveAll(destInData)
+			err = os.Mkdir(destInData, 0760)
+			if err != nil {
+				return errors.Wrap(err, "failed to create dest folder")
+			}
+		}
+	}
+
+	switch un.Config.Protocol {
+	case MTP:
+		dev, err := gomtp.GetDeviceBySerialNumber(un.Config.SerialNo)
+		if err != nil {
+			return errors.Wrapf(err, "failed to retrieve device matching serial number: %s", un.Config.SerialNo)
+		}
+		defer dev.ReleaseDevice()
+
+		err = dev.GetStorage()
+		if err != nil {
+			return errors.Wrapf(err, "failed to get storage for mtp device")
+		}
+
+		files, _, err := dev.GetFilesAndFolders(dev.Storage[0].Id, 0)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get files and folders for first storage id")
+		}
+
+		for _, f := range files {
+			// FIX [GARMIN SPECIFIC]: For some reason a my Forerunner it doesn't label files as anything but 44 (I think unknown?)
+			// 						  one way to guess it's a file is if it has an extension
+			probablyAFile := f.Filesize > 0
+			if probablyAFile {
+				fmt.Printf("Copying: %s, size: %d\n", f.Filename, f.Filesize)
+				localPath := fmt.Sprintf("%s/%s", destInData, f.Filename)
+				err = dev.GetFileToFile(f.ItemId, localPath)
+				if err != nil {
+					return errors.Wrapf(err, "failed to copy '%s' to local directory", f.Filename)
+				}
+			}
+		}
+	default:
+		return fmt.Errorf("no `Transfer` method provided for protocol: %v", un.Config.Protocol)
+	}
 	return nil
 }
