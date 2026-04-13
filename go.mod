@@ -13,6 +13,8 @@ require (
 )
 
 require (
+	github.com/google/gousb v1.1.3 // indirect
 	github.com/joomcode/errorx v1.1.1 // indirect
+	github.com/pericles-tpt/go-mtp v0.0.0-20260413091543-c762370e38a0 // indirect
 	github.com/pericles-tpt/utilities v0.0.0-20240125234659-27257af8cfbf // indirect
 )

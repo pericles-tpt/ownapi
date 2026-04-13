@@ -20,6 +20,13 @@ var (
 )
 
 func MakeDirectories() error {
+	// Make 'files' directory
+	path := fmt.Sprintf("%s/files", dataRoot)
+	err := os.Mkdir(path, 0760)
+	if err != nil && !os.IsExist(err) {
+		return errors.Wrap(err, "failed to create data directory for files")
+	}
+
 	for _, stage := range stages {
 		for rootNode, leaves := range nodeMap {
 			if len(leaves) == 0 {

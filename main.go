@@ -108,6 +108,11 @@ func main() {
 	}
 	fmt.Println("dev: ", dev)
 
+	err = dev.Transfer("/", "Garmin")
+	if err != nil {
+		panic(err)
+	}
+
 	err = secrets.Init("./secrets.txt", pipelinesBytes)
 	if err != nil {
 		panic(err)
