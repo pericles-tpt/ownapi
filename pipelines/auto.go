@@ -73,7 +73,7 @@ func ScheduleAutoTriggeredPipelines(pls []Pipeline) {
 		intervalTriggerNodeIdxs = [][]int{{0}}
 	)
 	for i := 1; i < len(triggerNodes); i++ {
-		ivl := intervals[i]
+		ivl := triggerNodes[i].EveryN
 
 		lastIdx := len(intervals) - 1
 		if intervals[lastIdx] < ivl {
@@ -115,8 +115,8 @@ func ScheduleAutoTriggeredPipelines(pls []Pipeline) {
 						log2.WriteLogs(log2.Auto, "RUNNING", []string{"INTERVAL", "UNIT"}, [][]any{{intervals[i], MIN_AUTO_RUN_LOOP_FREQUENCY_UNIT}}, true)
 
 						// Run pipelines
-						for j := range intervalTriggerNodeIdxs[i] {
-							plIdx := autoTriggeredPipelines[j]
+						for _, triggerNodeIdx := range intervalTriggerNodeIdxs[i] {
+							plIdx := autoTriggeredPipelines[triggerNodeIdx]
 							pl := pls[plIdx]
 
 							go Run(&pl.Name, nil, true)
