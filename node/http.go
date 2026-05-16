@@ -19,14 +19,11 @@ import (
 var (
 	supportedMethods       = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodHead}
 	supportedMethodsString = strings.Join(supportedMethods, ", ")
-
-	// TODO: This should be in a broader scope
-	usbResponseCacheOutputPath  string
-	jsonResponseCacheOutputPath string
-	httpResponseCacheOutputPath string
 )
 
 type HttpNodeConfig struct {
+	BaseNodeProps
+
 	RawBaseUrl      string    `json:"raw_url"`
 	RawUrlPathParts *[]string `json:"raw_url_path_parts"`
 	Method          string    `json:"method"`
@@ -41,7 +38,6 @@ type HttpNodeConfig struct {
 }
 
 type HTTPNode struct {
-	Hash       string         `json:"hash"`
 	Config     HttpNodeConfig `json:"config"`
 	CacheCheck *HeadProps     `json:"cache_check"`
 }
@@ -88,7 +84,7 @@ func CreateHTTPNode(propMap map[string]any, cfg HttpNodeConfig) (HTTPNode, error
 		ret.CacheCheck = &HeadProps{}
 	}
 
-	err = ret.generateNewHash()
+	err = ret.regenerateHash()
 	if err != nil {
 		return ret, errors.Wrap(err, "failed to generate hash for new `HttpNodeConfig`")
 	}
@@ -261,7 +257,7 @@ func (hn *HTTPNode) triggerHead(propMap map[string]any) (bool, error) {
 	}
 
 	if modified {
-		err = hn.generateNewHash()
+		err = hn.regenerateHash()
 		if err != nil {
 			return modified, errors.Wrap(err, "failed to generate new hash after `HeadProps` was modified")
 		}
@@ -271,19 +267,19 @@ func (hn *HTTPNode) triggerHead(propMap map[string]any) (bool, error) {
 	return modified, nil
 }
 
-func (hn *HTTPNode) generateNewHash() error {
+func (hn *HTTPNode) regenerateHash() error {
 	// Remove cache file for old file
-	if hn.Hash != "" {
-		cachedFilePath := fmt.Sprintf("%s/%s", httpResponseCacheOutputPath, hn.Hash)
+	if hn.Config.Hash != "" {
+		cachedFilePath := fmt.Sprintf("%s/%s", httpResponseCacheOutputPath, hn.Config.Hash)
 		err := os.Remove(cachedFilePath)
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
 
 	copyForHash := HTTPNode{}
 	copyForHash = *hn
-	copyForHash.Hash = ""
+	copyForHash.Config.Hash = ""
 	copyForHash.CacheCheck = nil
 
 	nodeBytes, err := json.Marshal(copyForHash)
@@ -298,7 +294,7 @@ func (hn *HTTPNode) generateNewHash() error {
 	}
 	newHashBytes := hash.Sum(nil)
 
-	hn.Hash = fmt.Sprintf("%x", newHashBytes)
+	hn.Config.Hash = fmt.Sprintf("%x", newHashBytes)
 	return nil
 }
 
@@ -378,7 +374,7 @@ func (hn *HTTPNode) updateHeadPropsAndGetModified(resp *http.Response) (bool, er
 }
 
 func (hn *HTTPNode) readCachedResponseData() *[]byte {
-	cachedFilePath := fmt.Sprintf("%s/%s", httpResponseCacheOutputPath, hn.Hash)
+	cachedFilePath := fmt.Sprintf("%s/%s", httpResponseCacheOutputPath, hn.Config.Hash)
 	data, err := os.ReadFile(cachedFilePath)
 	if err != nil {
 		return nil
@@ -387,7 +383,7 @@ func (hn *HTTPNode) readCachedResponseData() *[]byte {
 }
 
 func (hn *HTTPNode) writeCachedResponseData(data []byte) {
-	cachedFilePath := fmt.Sprintf("%s/%s", httpResponseCacheOutputPath, hn.Hash)
+	cachedFilePath := fmt.Sprintf("%s/%s", httpResponseCacheOutputPath, hn.Config.Hash)
 	os.Remove(cachedFilePath)
 
 	err := os.WriteFile(cachedFilePath, data, 0660)
@@ -432,4 +428,13 @@ func replaceSecretsThenDo(client *http.Client, req *http.Request) (*http.Respons
 		return resp, err
 	}
 	return resp, nil
+}
+
+func (hn *HTTPNode) Changed(propsMap map[string]any) bool {
+	return true
+}
+func (hn *HTTPNode) revert(changed *bool, propsMap map[string]any) {
+}
+func (hn *HTTPNode) GetTrigger() *Trigger {
+	return hn.Config.NodeTrigger
 }

@@ -12,37 +12,61 @@ import (
 type BaseNode interface {
 	Trigger(propMap map[string]any) (map[string]any, error)
 	triggerNoCache(propMap map[string]any) (map[string]any, error)
-	generateNewHash() error
+	regenerateHash() error
+	// TODO: Review whether these are necessary
 	readCachedResponseData() *[]byte
 	writeCachedResponseData(data []byte)
+
+	GetTrigger() *Trigger
+	Changed(propMap map[string]any) bool
+	revert(changed *bool, propMap map[string]any)
+}
+
+type Trigger struct {
+	EveryN int `json:"every_n"`
+}
+
+type BaseNodeProps struct {
+	Hash        string   `json:"hash"`
+	NodeTrigger *Trigger `json:"trigger,omitempty"`
 }
 
 var _ BaseNode = (*HTTPNode)(nil)
 var _ BaseNode = (*JSONNode)(nil)
+
+// Nested
+var _ BaseNode = (*USBCopyFromNode)(nil)
 
 type NodeType int
 
 const (
 	Http NodeType = iota
 	Json
+	UsbCopy
 )
 
-// var _ BaseNode = (*JSONNode)(nil)
+var (
+	jsonResponseCacheOutputPath string
+	httpResponseCacheOutputPath string
+
+	usbCopyResponseCacheOutputPath string
+)
 
 func Init() error {
 	var err error
-	httpResponseCacheOutputPath, _, err = setup.GetDirectoryPath("http")
+	httpResponseCacheOutputPath, _, err = setup.GetDirectoryPath([2]string{"http"})
 	if err != nil {
 		return errors.Wrap(err, "failed to init `httpResponseCacheOutputPath`")
 	}
-	jsonResponseCacheOutputPath, _, err = setup.GetDirectoryPath("json")
+	jsonResponseCacheOutputPath, _, err = setup.GetDirectoryPath([2]string{"json"})
 	if err != nil {
 		return errors.Wrap(err, "failed to init `jsonResponseCacheOutputPath`")
 	}
-	usbResponseCacheOutputPath, _, err = setup.GetDirectoryPath("usb")
+	usbCopyResponseCacheOutputPath, _, err = setup.GetDirectoryPath([2]string{"usb", "copy"})
 	if err != nil {
 		return errors.Wrap(err, "failed to init `usbResponseCacheOutputPath`")
 	}
+
 	return nil
 }
 
