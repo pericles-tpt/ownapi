@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	log2 "github.com/pericles-tpt/ownapi/log"
 	"github.com/pericles-tpt/ownapi/node"
 	"github.com/pkg/errors"
 )
@@ -15,35 +16,99 @@ var (
 	pipelineProgressMutex = sync.RWMutex{}
 )
 
-func Run(name string) (bool, error) {
-	propMap := map[string]any{}
-	propMap, exists, err := runPipeline(name, propMap)
+func Run(name *string, idx *int, runFromNodeTrigger bool) (bool, error) {
+	var (
+		propMap = map[string]any{}
+		exists  bool
+		err     error
+	)
+	if name == nil && idx == nil {
+		return exists, errors.New("at least one of `name` or `idx` must be non-nil")
+	}
+
+	var (
+		pl Pipeline
+		i  int
+	)
+	if name != nil {
+		pl, i, err = GetPipelineByName(*name)
+		if err != nil {
+			return exists, errors.Wrapf(err, "failed to get pipeline by name: %s", *name)
+		}
+		idx = &i
+	} else if idx != nil {
+		pl, err = GetPipelineByIdx(*idx)
+		if err != nil {
+			return exists, errors.Wrapf(err, "failed to get pipeline by idx: %d", *idx)
+		}
+	}
+
+	propMap, exists, err = runPipeline(pl, *idx, propMap, runFromNodeTrigger)
 	if err != nil {
-		fmt.Println("FAILED TO RUN: ", err)
-		return exists, errors.Wrap(err, "failed to run pipeline")
+		fmt.Printf("%s - FAILED TO RUN: %v\n", pl.Name, err)
+		return exists, errors.Wrapf(err, "failed to run pipeline: %s", pl.Name)
 	}
 	return exists, nil
 }
 
-func runPipeline(name string, propMap map[string]any) (map[string]any, bool, error) {
-	pl, exists := pipelinesMap[name]
-	if !exists {
-		return propMap, exists, fmt.Errorf("pipeline '%s' not found", name)
+func runPipeline(pipeline Pipeline, idx int, propMap map[string]any, runFromNodeTrigger bool) (map[string]any, bool, error) {
+	// TODO: These empty stages checks probably don't belong here
+	var (
+		err       error
+		cancelRun bool
+		nodes     = pipeline.Nodes
+	)
+	if len(nodes) == 0 {
+		return propMap, cancelRun, errors.New("pipeline contains no stages")
+	}
+	emptyStages := make([]int, 0, len(nodes))
+	for sn, stage := range nodes {
+		if len(stage) == 0 {
+			emptyStages = append(emptyStages, sn)
+		}
+	}
+	if len(emptyStages) > 0 {
+		return propMap, cancelRun, fmt.Errorf("the pipeline stages at the following indices contain no nodes: %v", emptyStages)
 	}
 
 	// Don't run if already running
 	pipelineProgressMutex.Lock()
-	isRunning := pipelinesProgress[name].OverallProgress == Running
+	isRunning := pipelinesProgress[idx].OverallProgress == Running
 	pipelineProgressMutex.Unlock()
 	if isRunning {
-		return propMap, exists, fmt.Errorf("pipeline '%s' already running", name)
+		return propMap, cancelRun, fmt.Errorf("pipeline '%s' already running", pipeline.Name)
+	}
+
+	// If auto-trigger then first node has already been run
+	sn := 0
+	if runFromNodeTrigger {
+		updatePipelineProgress(idx, sn, 0, Running)
+		propMap, err = nodes[0][0].Trigger(propMap)
+		if err != nil {
+			updatePipelineProgress(idx, sn, 0, Error)
+			return propMap, cancelRun, errors.New("trigger node for pipeline failed to run")
+		}
+
+		// Has it changed? If not don't run rest of pipeline
+		if !nodes[0][0].Changed(propMap) {
+			updatePipelineProgress(idx, sn, 0, NotRunning)
+			lt := log2.Manual
+			if runFromNodeTrigger {
+				lt = log2.Auto
+			}
+			log2.WriteLogs(lt, "SKIPPED", []string{}, [][]any{}, true)
+			return propMap, true, nil
+		}
+
+		sn = 1
 	}
 
 	start := time.Now()
 	var wg sync.WaitGroup
-	for sn, stage := range pl.Nodes {
-		start := time.Now()
+	for sn = 0; sn < len(nodes); sn++ {
 		var err error
+		stage := nodes[sn]
+		bef := time.Now()
 
 		wg.Add(len(stage))
 
@@ -55,7 +120,7 @@ func runPipeline(name string, propMap map[string]any) (map[string]any, bool, err
 
 		for nn, step := range stage {
 			// Update RUNNING status
-			updatePipelineProgress(name, sn, nn, Running)
+			updatePipelineProgress(idx, sn, nn, Running)
 			go func(s node.BaseNode) {
 				start := time.Now()
 				defer wg.Done()
@@ -72,7 +137,7 @@ func runPipeline(name string, propMap map[string]any) (map[string]any, bool, err
 				omMx.Unlock()
 				// Update SUCCESS | ERRROR status
 				took := time.Since(start).Microseconds()
-				completeNodeProgress(name, sn, nn, nodeStatus, took, err)
+				completeNodeProgress(idx, sn, nn, nodeStatus, took, err)
 			}(step)
 		}
 
@@ -113,23 +178,23 @@ func runPipeline(name string, propMap map[string]any) (map[string]any, bool, err
 			}
 		}
 
-		took := time.Since(start).Microseconds()
-		setPipelineStageTimingUs(name, sn, took)
+		took := time.Since(bef).Microseconds()
+		setPipelineStageTimingUs(idx, sn, took)
 	}
 	took := time.Since(start).Microseconds()
-	setPipelineOverallTimingUs(name, took)
+	setPipelineOverallTimingUs(idx, took)
 
 	time.Sleep(time.Millisecond)
 
-	resetPipelineProgress(name)
+	resetPipelineProgress(idx)
 	fmt.Println("FINISHED PIPELINE!")
 
-	return propMap, exists, nil
+	return propMap, cancelRun, nil
 }
 
-func completeNodeProgress(name string, stageNo int, nodeNo int, status PipelineStatus, durationMicroseconds int64, nodeError error) {
+func completeNodeProgress(idx int, stageNo int, nodeNo int, status PipelineStatus, durationMicroseconds int64, nodeError error) {
 	pipelineProgressMutex.Lock()
-	oldProgress := pipelinesProgress[name]
+	oldProgress := pipelinesProgress[idx]
 	pipelineProgressMutex.Unlock()
 	oldProgress.NodesProgress[stageNo][nodeNo] = status
 
@@ -154,13 +219,13 @@ func completeNodeProgress(name string, stageNo int, nodeNo int, status PipelineS
 	oldProgress.NodesTimingUs[stageNo][nodeNo] = durationMicroseconds
 
 	pipelineProgressMutex.Lock()
-	pipelinesProgress[name] = oldProgress
+	pipelinesProgress[idx] = oldProgress
 	pipelineProgressMutex.Unlock()
 }
 
-func updatePipelineProgress(name string, stageNo int, nodeNo int, status PipelineStatus) {
+func updatePipelineProgress(idx int, stageNo int, nodeNo int, status PipelineStatus) {
 	pipelineProgressMutex.Lock()
-	oldProgress := pipelinesProgress[name]
+	oldProgress := pipelinesProgress[idx]
 	pipelineProgressMutex.Unlock()
 	oldProgress.NodesProgress[stageNo][nodeNo] = status
 
@@ -168,13 +233,13 @@ func updatePipelineProgress(name string, stageNo int, nodeNo int, status Pipelin
 	oldProgress.StagesProgress[stageNo] = status
 
 	pipelineProgressMutex.Lock()
-	pipelinesProgress[name] = oldProgress
+	pipelinesProgress[idx] = oldProgress
 	pipelineProgressMutex.Unlock()
 }
 
-func resetPipelineProgress(name string) {
+func resetPipelineProgress(idx int) {
 	pipelineProgressMutex.Lock()
-	oldProgress := pipelinesProgress[name]
+	oldProgress := pipelinesProgress[idx]
 	pipelineProgressMutex.Unlock()
 	oldProgress.OverallProgress = NotRunning
 	for i := range oldProgress.StagesProgress {
@@ -185,30 +250,30 @@ func resetPipelineProgress(name string) {
 	}
 
 	pipelineProgressMutex.Lock()
-	pipelinesProgress[name] = oldProgress
+	pipelinesProgress[idx] = oldProgress
 	pipelineProgressMutex.Unlock()
 }
 
-func setPipelineStageTimingUs(name string, stageNo int, durationMicroseconds int64) {
+func setPipelineStageTimingUs(idx int, stageNo int, durationMicroseconds int64) {
 	pipelineProgressMutex.Lock()
-	oldProgress := pipelinesProgress[name]
+	oldProgress := pipelinesProgress[idx]
 	pipelineProgressMutex.Unlock()
 
 	oldProgress.StagesTimingUs[stageNo] = durationMicroseconds
 
 	pipelineProgressMutex.Lock()
-	pipelinesProgress[name] = oldProgress
+	pipelinesProgress[idx] = oldProgress
 	pipelineProgressMutex.Unlock()
 }
 
-func setPipelineOverallTimingUs(name string, durationMicroseconds int64) {
+func setPipelineOverallTimingUs(idx int, durationMicroseconds int64) {
 	pipelineProgressMutex.Lock()
-	oldProgress := pipelinesProgress[name]
+	oldProgress := pipelinesProgress[idx]
 	pipelineProgressMutex.Unlock()
 
 	oldProgress.OverallTimingUs = durationMicroseconds
 
 	pipelineProgressMutex.Lock()
-	pipelinesProgress[name] = oldProgress
+	pipelinesProgress[idx] = oldProgress
 	pipelineProgressMutex.Unlock()
 }
