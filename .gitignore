@@ -7,5 +7,6 @@ _legacy
 _sample_data
 dist/*
 ownapi*
+_logs/*
 .DS_Store
 secrets.txt

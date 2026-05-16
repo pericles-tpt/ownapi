@@ -1,17 +1,17 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"log"
 	"net/http"
-	"reflect"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/pericles-tpt/ownapi/config"
+	"github.com/pericles-tpt/ownapi/db"
 	"github.com/pericles-tpt/ownapi/handlers"
+
+	// TODO: Wrap the go logger instead of doing my own thing
+	log2 "github.com/pericles-tpt/ownapi/log"
 	"github.com/pericles-tpt/ownapi/node"
 	"github.com/pericles-tpt/ownapi/pipelines"
 	"github.com/pericles-tpt/ownapi/secrets"
@@ -87,7 +87,14 @@ type Output struct {
 }
 
 func main() {
-	err := setup.MakeDirectories()
+	ctx := context.Background()
+	// TODO: Do something with first `queryer` argument
+	_, err := db.InitDB(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	err = setup.MakeDirectories()
 	if err != nil {
 		panic(err)
 	}
@@ -97,29 +104,23 @@ func main() {
 		panic(err)
 	}
 
-	pipelinesBytes, _, err := pipelines.Load("./_config/pipelines.json")
+	err = log2.Setup()
 	if err != nil {
 		panic(err)
 	}
 
-	dev, err := node.CreateUSBNode(map[string]any{}, node.USBNodeConfig{})
+	// TODO: Validate pipelines are non-enpty and don't contain empty stages, validate other stuff?
+	pipelinesBytes, myPipelines, err := pipelines.Load("./_config/pipelines.json")
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("dev: ", dev)
 
-	err = dev.Transfer("/", "Garmin")
-	if err != nil {
-		panic(err)
-	}
+	go pipelines.ScheduleAutoTriggeredPipelines(myPipelines)
 
 	err = secrets.Init("./secrets.txt", pipelinesBytes)
 	if err != nil {
 		panic(err)
 	}
-
-	// hardcoded test of pipelines
-	// hardcodedTest(pipelinesMap)
 
 	// Need to serve web pages
 	err = godotenv.Load(".env")
@@ -166,101 +167,6 @@ func startServer(url string, cfg config.Config, mux *http.ServeMux) {
 	// Start (backend) server
 	log.Printf("Listening on port %s...\n", config.GetURLPort(url))
 	log.Fatal(http.ListenAndServe(url, handler))
-}
-
-func hardcodedTest(pipelines map[string]pipelines.Pipeline) {
-	propMap := map[string]any{}
-
-	bef := time.Now()
-
-	for name, pl := range pipelines {
-		go func() {
-			var err error
-			fmt.Println("Running pipeline:", name)
-			propMap, err = runPipeline(pl.Nodes, propMap)
-			if err != nil {
-				panic(err)
-			}
-			fmt.Println("Pipeline took: ", time.Since(bef))
-		}()
-	}
-	// time.Sleep(time.Second * 5)
-}
-
-func runPipeline(pipeline [][]node.BaseNode, propMap map[string]any) (map[string]any, error) {
-	var wg sync.WaitGroup
-
-	for sn, stage := range pipeline {
-		var err error
-		bef := time.Now()
-
-		wg.Add(len(stage))
-
-		// fmt.Printf("propMap types at START of stage: %d\n", sn)
-		// for k, v := range propMap {
-		// 	to := reflect.TypeOf(v).String()
-		// 	if strings.HasPrefix(to, "[]") || strings.HasPrefix(to, "map[") {
-		// 		fmt.Printf("k: %s, tv: %s\n", k, reflect.TypeOf(v))
-		// 	} else {
-		// 		fmt.Printf("k: %s, tv: %v\n", k, v)
-		// 	}
-		// }
-
-		stageErrCh := make(chan error, len(stage))
-		outputMaps := make([]map[string]any, len(stage))
-		errs := make([]error, 0, len(stage))
-
-		for i, step := range stage {
-			go func(s node.BaseNode) {
-				defer wg.Done()
-
-				// Execute the step with context
-				var err error
-				if outputMaps[i], err = s.Trigger(propMap); err != nil {
-					// Send error to stage-specific error channel
-					stageErrCh <- err
-				}
-			}(step)
-		}
-
-		go func() {
-			wg.Wait()
-			close(stageErrCh)
-		}()
-
-		for err := range stageErrCh {
-			errs = append(errs, err)
-		}
-
-		for _, om := range outputMaps {
-			for k, v := range om {
-				propMap[k] = v
-			}
-		}
-
-		propMap, err = node.UpdateKeys(propMap, sn)
-		if err != nil {
-			errs = append(errs, err)
-		}
-
-		if len(errs) > 0 {
-			fmt.Printf("Error(s) occurred at pipeline stage %d: %v", sn, errs)
-			break
-		}
-
-		fmt.Printf("propMap types at END of stage: %d\n", sn)
-		for k, v := range propMap {
-			to := reflect.TypeOf(v).String()
-			if strings.HasPrefix(to, "[]") || strings.HasPrefix(to, "map[") {
-				fmt.Printf("k: %s, tv: %s\n", k, reflect.TypeOf(v))
-			} else {
-				fmt.Printf("k: %s, tv: %v\n", k, v)
-			}
-		}
-
-		fmt.Printf("Time taken for stage %d is: %v\n", sn, time.Since(bef))
-	}
-	return propMap, nil
 }
 
 // Codegen -> Binaries
