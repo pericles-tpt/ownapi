@@ -11,12 +11,13 @@ import (
 )
 
 type JSONNodeConfig struct {
+	BaseNodeProps
+
 	InputKey     string             `json:"input_key"`
 	ExtractNodes []utility.JSONProp `json:"extract_nodes"`
 }
 
 type JSONNode struct {
-	Hash   string         `json:"hash"`
 	Config JSONNodeConfig `json:"config"`
 }
 
@@ -31,7 +32,7 @@ func CreateJSONNode(propMap map[string]any, cfg JSONNodeConfig) (JSONNode, error
 		Config: cfg,
 	}
 
-	err = ret.generateNewHash()
+	err = ret.regenerateHash()
 	if err != nil {
 		return ret, errors.Wrap(err, "failed to generate hash for new `httpBaseNode`")
 	}
@@ -99,7 +100,7 @@ func (jn *JSONNode) Trigger(propMap map[string]any) (map[string]any, error) {
 	if err != nil {
 		return outputMap, errors.Wrap(err, "failed to marshal extracted JSON values to bytes")
 	}
-	path := fmt.Sprintf("%s/%s", jsonResponseCacheOutputPath, jn.Hash)
+	path := fmt.Sprintf("%s/%s", jsonResponseCacheOutputPath, jn.Config.Hash)
 	err = os.WriteFile(path, data, 0660)
 	if err != nil {
 		return outputMap, errors.Wrap(err, "failed to write output of JSON HTTP request to file")
@@ -108,19 +109,19 @@ func (jn *JSONNode) Trigger(propMap map[string]any) (map[string]any, error) {
 	return outputMap, nil
 }
 
-func (jn *JSONNode) generateNewHash() error {
+func (jn *JSONNode) regenerateHash() error {
 	// Remove cache file for old file
-	if jn.Hash != "" {
-		cachedFilePath := fmt.Sprintf("%s/%s", jsonResponseCacheOutputPath, jn.Hash)
+	if jn.Config.Hash != "" {
+		cachedFilePath := fmt.Sprintf("%s/%s", jsonResponseCacheOutputPath, jn.Config.Hash)
 		err := os.Remove(cachedFilePath)
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
 
 	copyForHash := JSONNode{}
 	copyForHash = *jn
-	copyForHash.Hash = ""
+	copyForHash.Config.Hash = ""
 
 	nodeBytes, err := json.Marshal(copyForHash)
 	if err != nil {
@@ -134,12 +135,12 @@ func (jn *JSONNode) generateNewHash() error {
 	}
 	newHashBytes := hash.Sum(nil)
 
-	jn.Hash = fmt.Sprintf("%x", newHashBytes)
+	jn.Config.Hash = fmt.Sprintf("%x", newHashBytes)
 	return nil
 }
 
-func (hn *JSONNode) readCachedResponseData() *[]byte {
-	cachedFilePath := fmt.Sprintf("%s/%s", jsonResponseCacheOutputPath, hn.Hash)
+func (jn *JSONNode) readCachedResponseData() *[]byte {
+	cachedFilePath := fmt.Sprintf("%s/%s", jsonResponseCacheOutputPath, jn.Config.Hash)
 	data, err := os.ReadFile(cachedFilePath)
 	if err != nil {
 		return nil
@@ -147,8 +148,8 @@ func (hn *JSONNode) readCachedResponseData() *[]byte {
 	return &data
 }
 
-func (hn *JSONNode) writeCachedResponseData(data []byte) {
-	cachedFilePath := fmt.Sprintf("%s/%s", jsonResponseCacheOutputPath, hn.Hash)
+func (jn *JSONNode) writeCachedResponseData(data []byte) {
+	cachedFilePath := fmt.Sprintf("%s/%s", jsonResponseCacheOutputPath, jn.Config.Hash)
 	os.Remove(cachedFilePath)
 
 	err := os.WriteFile(cachedFilePath, data, 0660)
@@ -170,4 +171,13 @@ func (jn *JSONNode) maybeConsumeInput(propMap map[string]any) ([]byte, error) {
 		return input, fmt.Errorf("input at key '%s' in propMap is not a []byte", jn.Config.InputKey)
 	}
 	return input, nil
+}
+
+func (jn *JSONNode) Changed(propMap map[string]any) bool {
+	return true
+}
+func (jn *JSONNode) revert(changed *bool, propMap map[string]any) {
+}
+func (jn *JSONNode) GetTrigger() *Trigger {
+	return jn.Config.NodeTrigger
 }
