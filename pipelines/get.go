@@ -33,31 +33,40 @@ type PipelineProgress struct {
 }
 
 func GetPipelineNames() []string {
-	names := make([]string, 0, len(pipelinesMap))
-	for name := range pipelinesMap {
-		names = append(names, name)
+	names := make([]string, 0, len(pipelines))
+	for _, pl := range pipelines {
+		names = append(names, pl.Name)
 	}
 	return names
 }
 
-func GetPipleine(name string) (Pipeline, bool, error) {
-	var (
-		pl     Pipeline
-		exists bool
-	)
-	pl, exists = pipelinesMap[name]
-	if !exists {
-		return pl, exists, fmt.Errorf("pipeline '%s' not found", name)
+func GetPipelineByName(name string) (Pipeline, int, error) {
+	var pl Pipeline
+	for i, pl := range pipelines {
+		if name == pl.Name {
+			return pl, i, nil
+		}
 	}
-
-	return pl, exists, nil
+	return pl, -1, fmt.Errorf("pipeline '%s' not found", name)
 }
 
-func GetPipelinesStatuses() map[string]PipelineProgress {
+func GetPipelineByIdx(idx int) (Pipeline, error) {
+	var pl Pipeline
+	if idx < 0 || idx >= len(pipelines) {
+		return pl, fmt.Errorf("idx: %d, out of range must be 0 <= idx < %d", idx, len(pipelines))
+	}
+	return pipelines[idx], nil
+}
+
+func GetPipelinesStatuses() []PipelineProgress {
 	return pipelinesProgress
 }
 
 func PipelineExists(name string) bool {
-	_, ok := pipelinesMap[name]
-	return ok
+	for _, pl := range pipelines {
+		if name == pl.Name {
+			return true
+		}
+	}
+	return false
 }

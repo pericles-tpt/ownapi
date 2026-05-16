@@ -47,13 +47,9 @@ func GetPipelineContent(w http.ResponseWriter, r *http.Request) {
 	// TODO: Auth
 
 	plName := r.PathValue("name")
-	pl, exists, err := pipelines.GetPipleine(plName)
+	pl, _, err := pipelines.GetPipelineByName(plName)
 	if err != nil {
-		if !exists {
-			http.Error(w, "failed to find pipeline matching name", http.StatusBadRequest)
-			return
-		}
-		http.Error(w, "failed to get pipeline contents", http.StatusBadRequest)
+		http.Error(w, "failed to find pipeline matching name", http.StatusBadRequest)
 		return
 	}
 
@@ -74,11 +70,11 @@ func RunPipeline(w http.ResponseWriter, r *http.Request) {
 	// TODO: This currently runs synchronously, ideally should be async
 
 	plName := r.PathValue("name")
-	exists := pipelines.PipelineExists(plName)
-	if !exists {
+	_, idx, err := pipelines.GetPipelineByName(plName)
+	if err != nil {
 		http.Error(w, "failed to find pipeline matching name", http.StatusBadRequest)
 		return
 	}
 
-	go pipelines.Run(plName)
+	go pipelines.Run(nil, &idx, false)
 }
