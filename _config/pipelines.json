@@ -4,8 +4,8 @@
         "nodes": [
         [
             {
-                "hash": "94d6b0f97db823199ccc420a984306440fd557e9",
                 "config": {
+                    "hash": "94d6b0f97db823199ccc420a984306440fd557e9",
                     "raw_url": "https://api.bom.gov.au/apikey/v1/locations/places/autocomplete",
                     "raw_url_path_parts": null,
                     "method": "GET",
@@ -15,7 +15,8 @@
                     },
                     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
                     "use_head_and_cache_responses": true,
-                    "output_key": "output:json"
+                    "output_key": "output:json",
+                    "trigger":{"every_n":240000}
                 },
                 "cache_check": {
                     "last_modified": null,
@@ -26,8 +27,8 @@
         ],
         [
             {
-                "hash": "b31535ace08d223797558c09359f8ef3813eb28b",
                 "config": {
+                    "hash": "b31535ace08d223797558c09359f8ef3813eb28b",
                     "input_key": "input:json",
                     "extract_nodes": [
                         {
@@ -80,8 +81,8 @@
         ],
         [
             {
-                "hash": "15458b2e0d58618e3609a76211daadada5493aa0",
                 "config": {
+                    "hash": "15458b2e0d58618e3609a76211daadada5493aa0",
                     "raw_url": "https://api.bom.gov.au/apikey/v1/locations/places/details/place",
                     "raw_url_path_parts": [
                         "input:id"
@@ -106,8 +107,8 @@
         ],
         [
             {
-                "hash": "11dd41bca61c98476e773b46ce5811e5823a50ae",
                 "config": {
+                    "hash": "11dd41bca61c98476e773b46ce5811e5823a50ae",
                     "input_key": "input:json2",
                     "extract_nodes": [
                         {
@@ -162,8 +163,8 @@
         ],
         [
             {
-                "hash": "0e3d0d0bed33f1daa0ceb26718eb69d9958c9ecd",
                 "config": {
+                    "hash": "0e3d0d0bed33f1daa0ceb26718eb69d9958c9ecd",
                     "raw_url": "https://api.bom.gov.au/apikey/v1/forecasts/1hourly",
                     "raw_url_path_parts": [
                         "input:x",
@@ -185,8 +186,8 @@
                 }
             },
             {
-                "hash": "c5f2195f7df9a2c180d472c901c28ad6a4cfea3b",
                 "config": {
+                    "hash": "c5f2195f7df9a2c180d472c901c28ad6a4cfea3b",
                     "raw_url": "https://api.bom.gov.au/apikey/v1/forecasts/3hourly",
                     "raw_url_path_parts": [
                         "input:x",
@@ -208,8 +209,8 @@
                 }
             },
             {
-                "hash": "49d2c02a9696bd0da00ae59a529bbfd0e168f067",
                 "config": {
+                    "hash": "49d2c02a9696bd0da00ae59a529bbfd0e168f067",
                     "raw_url": "https://api.bom.gov.au/apikey/v1/forecasts/daily",
                     "raw_url_path_parts": [
                         "input:x",
@@ -255,8 +256,8 @@
         "nodes": [
         [
             {
-                "hash": "64f4da0b599fcc8866b522ab1be635f7a444fdd9",
                 "config": {
+                    "hash": "64f4da0b599fcc8866b522ab1be635f7a444fdd9",
                     "raw_url": "https://api.transport.nsw.gov.au/v1/gtfs/realtime/buses",
                     "raw_url_path_parts": null,
                     "method": "GET",
