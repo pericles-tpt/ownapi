@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
 	"unicode/utf8"
 
@@ -241,7 +242,24 @@ func setupSecretsOrPromptPassword(filename string) ([]byte, error) {
 	fmt.Println(pwPromptPrefix)
 	var validPW bool
 	for !validPW {
-		pw, err := term.ReadPassword(int(os.Stdin.Fd()))
+		// Restore terminal to old state after reading password
+		stdin := int(os.Stdin.Fd())
+		oldState, err := term.GetState(stdin)
+		if err != nil {
+			return nil, err
+		}
+		defer term.Restore(stdin, oldState)
+
+		// Handle Ctrl+C to restore terminal to old state
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt)
+		go func() {
+			<-sigChan
+			term.Restore(stdin, oldState)
+			os.Exit(1)
+		}()
+
+		pw, err = term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			return pw, err
 		}
