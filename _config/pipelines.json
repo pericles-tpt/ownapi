@@ -1,5 +1,6 @@
-{
-    "weatherPipeline": {
+[
+    {
+        "name": "weather",
         "nodes": [
         [
             {
@@ -249,7 +250,8 @@
         ]
     ]
     },
-    "transportPipeline": {
+    {
+        "name": "transport",
         "nodes": [
         [
             {
@@ -276,6 +278,6 @@
         ]
     ],
     "nodeTypes": [[0]]
-    }
-    
-}
+    },
+    {"name": "garmin", "nodes":[[{"config":{"hash":"1f10abb3ce09ac613db05dccaf0c9cf472b68171","trigger":{"every_n":40000},"serial_no":"0000cbe5b70f","protocol":0,"perms":1,"src_path":"/"}}]],"nodeTypes":[[2]]}
+]
