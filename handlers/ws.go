@@ -11,6 +11,11 @@ import (
 	"github.com/pericles-tpt/ownapi/utility"
 )
 
+type wsPipelinesUpdate struct {
+	Pipelines        []pipelines.Pipeline         `json:"pipelines"`
+	PipelineStatuses []pipelines.PipelineProgress `json:"pipelineStatuses"`
+}
+
 func OpenClientWS(w http.ResponseWriter, r *http.Request) {
 	// TODO: Communication is one-way so far, Server Sent Events (SSE) is better for this: https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
 	conn, err := upgrader.Upgrade(w, r, nil) // error ignored for sake of simplicity
@@ -21,33 +26,36 @@ func OpenClientWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lastStatusBytes := []byte{}
+	lastPipelinesUpdateBytes := []byte{}
 	for {
 		// Read message from browser
 		// msgType, msg, err := conn.ReadMessage()
 		// if err != nil {
 		// 	return
 		// }
-		maybeNewStatus := pipelines.GetPipelinesStatuses()
+		maybeNewPipelinesUpdate := wsPipelinesUpdate{
+			Pipelines:        pipelines.GetPipelines(),
+			PipelineStatuses: pipelines.GetPipelinesStatuses(),
+		}
 		// if err != nil {
 		// 	fmt.Println("Closing WS because of failure to retrieve pipeline statuses: ", err)
 		// 	return
 		// }
 
-		maybeNewStatusBytes, err := json.Marshal(maybeNewStatus)
-		statusChanged := err == nil && !utility.BytesEqual(lastStatusBytes, maybeNewStatusBytes)
+		maybeNewPipelinesUpdateBytes, err := json.Marshal(maybeNewPipelinesUpdate)
+		statusChanged := err == nil && !utility.BytesEqual(lastPipelinesUpdateBytes, maybeNewPipelinesUpdateBytes)
 
 		// // Print the message to the console
 		// fmt.Printf("%s sent: %s\n", conn.RemoteAddr(), string(msg))
 		// Write message back to browser
 		if statusChanged {
 			fmt.Println("STATUS CHANGED")
-			if err = conn.WriteMessage(websocket.TextMessage, maybeNewStatusBytes); err != nil {
+			if err = conn.WriteMessage(websocket.TextMessage, maybeNewPipelinesUpdateBytes); err != nil {
 				return
 			}
 		}
 
-		lastStatusBytes = maybeNewStatusBytes
+		lastPipelinesUpdateBytes = maybeNewPipelinesUpdateBytes
 
 		time.Sleep(5 * time.Microsecond)
 

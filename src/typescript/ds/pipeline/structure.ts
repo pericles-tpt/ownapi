@@ -1,4 +1,5 @@
 export type Pipeline = {
+    name: string,
     nodes: BaseNode[][],
     nodeTypes: NodeType[][],
 };
@@ -39,3 +40,8 @@ export enum pipelineStatus {
 }
 
 export const pipelineStatusNames = ["running", "error", "success", "notRunning"]
+
+export type pipelineWSUpdate = {
+    pipelines: Pipeline[],
+    pipelineStatuses: pipelineProgress[],
+}

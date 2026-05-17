@@ -62,6 +62,10 @@ func GetPipelinesStatuses() []PipelineProgress {
 	return pipelinesProgress
 }
 
+func GetPipelines() []Pipeline {
+	return pipelines
+}
+
 func PipelineExists(name string) bool {
 	for _, pl := range pipelines {
 		if name == pl.Name {
