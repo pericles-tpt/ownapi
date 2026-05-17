@@ -7,7 +7,7 @@ import { ButtonType, Modal } from './components/modal';
 import { App } from './pages/app';
 import axios from "axios"
 import { untemplateDivElement } from "./utility/render"
-import { Pipeline, pipelineProgress, pipelineStatus, pipelineStatusNames } from "./ds/pipeline/structure"
+import { Pipeline, pipelineProgress, pipelineStatus, pipelineStatusNames, pipelineWSUpdate } from "./ds/pipeline/structure"
 import { getNodeTypeLabel } from "./ds/pipeline/get"
 import { getMSPreciseTimeString, getTimingStringFromUs } from "./utility/time"
 
@@ -41,7 +41,7 @@ window.onload = () => {
         // TODO: Handle event
         
         // const arr = new Uint8Array(await (e.data as Blob).arrayBuffer());
-        const pipelineStatuses = new Map<string,pipelineProgress>(Object.entries(JSON.parse(e.data)));
+        const pipelineStatuses = JSON.parse(e.data) as pipelineWSUpdate;
         console.log("update: ", pipelineStatuses)
 
         updatePipelineUI(pipelineStatuses);
@@ -55,9 +55,15 @@ window.onload = () => {
     console.log('hello world!')
 }
 
-function updatePipelineUI(pipelineStatuses: Map<string, pipelineProgress>) {
+function updatePipelineUI(pipelineStatuses: pipelineWSUpdate) {
     const activePipeline = document.querySelector('main').getAttribute('pipeline');
-    const mainPipeline = pipelineStatuses.get(activePipeline);
+    let mainPipelineProgress: pipelineProgress;
+    for (let i = 0; i < pipelineStatuses.pipelines.length; i++) {
+        if (activePipeline == pipelineStatuses.pipelines[i].name) {
+            mainPipelineProgress = pipelineStatuses.pipelineStatuses[i];
+            break;
+        }
+    }
     let activePipelineHasSuccessAttribute = false;
 
     // IF success && activePipeline, don't change state
@@ -66,7 +72,7 @@ function updatePipelineUI(pipelineStatuses: Map<string, pipelineProgress>) {
     const sidebarItems = document.querySelectorAll("[sidebar-item]") as NodeListOf<HTMLDivElement>;
     sidebarItems.forEach(it => {
         const name = it.innerText;
-        const status = pipelineStatuses.get(name).overallProgress;
+        const status = mainPipelineProgress.overallProgress;
         
         const isActivePipeline = name === activePipeline;
         if (isActivePipeline) {
@@ -85,20 +91,20 @@ function updatePipelineUI(pipelineStatuses: Map<string, pipelineProgress>) {
     if (!activePipelineHasSuccessAttribute) {
         const pipelineColumns = document.querySelectorAll('main [pipeline-col]') as NodeListOf<HTMLDivElement>;
         pipelineColumns.forEach((elem, i) => {
-            const status = mainPipeline.stagesProgress[i]
+            const status = mainPipelineProgress.stagesProgress[i]
             pipelineStatusNames.forEach((sn, j) => {
                 const enabled = Number(status) === j;
                 elem.toggleAttribute(sn, enabled);
             })
     
             elem.querySelectorAll('[pipeline-node]').forEach((node, j) => {
-                const status = mainPipeline.nodesProgress[i][j];
+                const status = mainPipelineProgress.nodesProgress[i][j];
                 pipelineStatusNames.forEach((sn, k) => {
                     const enabled = Number(status) === k;
                     node.toggleAttribute(sn, enabled);
 
                     const timingElem = node.querySelector('[node-timing]') as HTMLDivElement;
-                    timingElem.innerText = getTimingStringFromUs(mainPipeline.nodesTimingUs[i][j]);
+                    timingElem.innerText = getTimingStringFromUs(mainPipelineProgress.nodesTimingUs[i][j]);
                 })
             });
         })
@@ -133,25 +139,25 @@ function resetPipelineStatuses() {
 }
 
 function showPipelineInMain(pipelineName: string) {
-    const main = document.querySelector('main')
+    const main = document.querySelector('main') as HTMLElement;
     axios({
         method: 'get',
         url: `http://localhost:8080/pipelines/content/${pipelineName}`
     }).then(resp => {
         main.innerHTML = '';
-
+        
         const pipeline = resp.data as Pipeline;
         const pipelineGrid = untemplateDivElement('pipeline-grid-tmpl');
 
         for (let i = 0; i < pipeline.nodes.length; i++) {
             const pipelineCol = untemplateDivElement('pipeline-col-tmpl');
-
+            
             for (let j = 0; j < pipeline.nodes[i].length; j++) {
                 const node = pipeline.nodes[i][j];
                 
                 const pipelineNode = untemplateDivElement('pipeline-node-tmpl');
                 const nameChild = pipelineNode.querySelector('div[node-name]') as HTMLDivElement;
-                nameChild.innerText = node.hash.substring(0, 5);
+                nameChild.innerText = node.config.hash.substring(0, 5);
                 const labelChild = pipelineNode.querySelector('div[node-label]') as HTMLDivElement;
                 labelChild.innerText = getNodeTypeLabel(pipeline.nodeTypes[i][j]);
 
