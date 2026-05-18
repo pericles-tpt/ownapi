@@ -16,7 +16,10 @@ const unitToMicrosecondsMap = new Map<string, number>(
     ]
 )
 
-export function milliToDurationString(nv: number): string {
+export function milliToDurationString(nv: number, msDP: number): string {
+    if (nv < 0) {
+        return ""
+    }
     const stringParts: string[] = [];
     
     const days = Math.floor(nv / MILLI_TO_DAY);
@@ -34,15 +37,18 @@ export function milliToDurationString(nv: number): string {
     if (minutes > 0 || stringParts.length > 0) {
         stringParts.push(`${minutes}`.padStart(2, "0"))
     }
-    if (minutes < 1) {
-        stringParts.push("00")
-    }
     const seconds = Math.floor(nv / MILLI_TO_SEC);
     nv -= seconds * MILLI_TO_SEC;
     stringParts.push(`${seconds}`.padStart(2, "0"))
     const milliseconds = nv;
 
-    return stringParts.join(":") + "." + `${milliseconds}`.padStart(3, "0")
+    if (msDP >= 3) {
+        msDP = 3
+    } else if (msDP <= 0) {
+        msDP = -1
+    }
+    msDP = 3 - msDP
+    return (stringParts.join(":") + "." + `${milliseconds}`.padStart(3, "0")).slice(0, -msDP)
 }
 
 export function formatGoDatetime(datetime: string): string {

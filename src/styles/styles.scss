@@ -135,6 +135,10 @@ body {
                 margin: 0px 10px 10px 10px;
                 cursor: pointer;
 
+                display:flex;
+                flex-direction: row;
+                justify-content: space-between;
+
                 &[running] {
                     background-color: $blue;
                     color: $white;
@@ -145,6 +149,10 @@ body {
                 }
                 &[success] {
                     background-color: $green;
+                    color: $white;
+                }
+                &[unchanged] {
+                    background-color: $purple;
                     color: $white;
                 }
             }
@@ -326,6 +334,9 @@ div[badge] {
     &[success] {
         border-color: $green;
     }
+    &[unchanged] {
+        border-color: $purple;
+    }
     
     [node-name] {
         font-weight: bold;
@@ -362,6 +373,9 @@ div[badge] {
     }
     &[success] {
         border-color: $green;
+    }
+    &[unchanged] {
+        border-color: $purple;
     }
 }
 

@@ -30,6 +30,8 @@ export type pipelineProgress = {
     nodesTimingUs: number[][],
 
     nodesErrors: nodeError[],
+    lastUpdate: number,
+    nextRunAtUnixMilli: number,
 }
 
 export enum pipelineStatus {
@@ -37,9 +39,10 @@ export enum pipelineStatus {
     error,
     success,
     notRunning,
+    unchanged
 }
 
-export const pipelineStatusNames = ["running", "error", "success", "notRunning"]
+export const pipelineStatusNames = ["running", "error", "success", "notRunning", "unchanged"]
 
 export type pipelineWSUpdate = {
     pipelines: Pipeline[],

@@ -15,6 +15,10 @@
 <body>
     <div sidebar>
         <h1>ownapi</h1>
+        <label>
+            <input type="checkbox" name="live-mode">
+            live mode
+        </label>
         <div pipelines>
         </div>
     </div>
@@ -38,6 +42,8 @@
 </template>
 <template id="sidebar-pipeline-tmpl">
     <div sidebar-item>
+        <div title></div>
+        <div countdown></div>
     </div>
 </template>
 <template id="pipeline-node-tmpl">
