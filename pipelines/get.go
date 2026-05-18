@@ -11,6 +11,7 @@ const (
 	Error
 	Success
 	NotRunning
+	Unchanged
 )
 
 // Node Idx to
