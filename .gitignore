@@ -8,5 +8,6 @@ _sample_data
 dist/*
 ownapi*
 _logs/*
+build/*
 .DS_Store
 secrets.txt
