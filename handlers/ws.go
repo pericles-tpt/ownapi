@@ -3,7 +3,9 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -15,6 +17,12 @@ type wsPipelinesUpdate struct {
 	Pipelines        []pipelines.Pipeline         `json:"pipelines"`
 	PipelineStatuses []pipelines.PipelineProgress `json:"pipelineStatuses"`
 }
+
+var (
+	APPROX_EIGTH_OF_AUTO_RUN_LOOP_FREQUENCY = (2500 * time.Microsecond) // 2.5ms
+	WS_SLEEP_NS                             = math.Max(float64(APPROX_EIGTH_OF_AUTO_RUN_LOOP_FREQUENCY), float64(pipelines.AUTO_RUN_LOOP_WAIT_OFFSET_NS))
+	ts                                      = &syscall.Timespec{Nsec: (int64(WS_SLEEP_NS) - pipelines.AUTO_RUN_LOOP_WAIT_OFFSET_NS)}
+)
 
 func OpenClientWS(w http.ResponseWriter, r *http.Request) {
 	// TODO: Communication is one-way so far, Server Sent Events (SSE) is better for this: https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
@@ -49,7 +57,6 @@ func OpenClientWS(w http.ResponseWriter, r *http.Request) {
 		// fmt.Printf("%s sent: %s\n", conn.RemoteAddr(), string(msg))
 		// Write message back to browser
 		if statusChanged {
-			fmt.Println("STATUS CHANGED")
 			if err = conn.WriteMessage(websocket.TextMessage, maybeNewPipelinesUpdateBytes); err != nil {
 				return
 			}
@@ -57,7 +64,11 @@ func OpenClientWS(w http.ResponseWriter, r *http.Request) {
 
 		lastPipelinesUpdateBytes = maybeNewPipelinesUpdateBytes
 
-		time.Sleep(5 * time.Microsecond)
+		err = syscall.Nanosleep(ts, nil)
+		if err != nil {
+			// Can return "interrupted system call" error, retry once always on error
+			syscall.Nanosleep(ts, nil)
+		}
 
 		// Pipline: NOT RUNNING, RUNNING, ERROR
 		// Stage: NOT RUNNING, RUNNING, ERROR
