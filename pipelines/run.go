@@ -16,7 +16,7 @@ var (
 	pipelineProgressMutex = sync.RWMutex{}
 )
 
-func Run(name *string, idx *int, runFromNodeTrigger bool) (bool, error) {
+func Run(name *string, idx *int, maybeTriggeredByFirstNodeDuration *time.Duration) (bool, error) {
 	var (
 		propMap = map[string]any{}
 		exists  bool
@@ -43,7 +43,7 @@ func Run(name *string, idx *int, runFromNodeTrigger bool) (bool, error) {
 		}
 	}
 
-	propMap, exists, err = runPipeline(pl, *idx, propMap, runFromNodeTrigger)
+	propMap, exists, err = runPipeline(pl, *idx, propMap, maybeTriggeredByFirstNodeDuration)
 	if err != nil {
 		fmt.Printf("%s - FAILED TO RUN: %v\n", pl.Name, err)
 		return exists, errors.Wrapf(err, "failed to run pipeline: %s", pl.Name)
@@ -51,7 +51,7 @@ func Run(name *string, idx *int, runFromNodeTrigger bool) (bool, error) {
 	return exists, nil
 }
 
-func runPipeline(pipeline Pipeline, idx int, propMap map[string]any, runFromNodeTrigger bool) (map[string]any, bool, error) {
+func runPipeline(pipeline Pipeline, idx int, propMap map[string]any, maybeTriggeredByFirstNodeDuration *time.Duration) (map[string]any, bool, error) {
 	// TODO: These empty stages checks probably don't belong here
 	var (
 		err       error
@@ -81,23 +81,31 @@ func runPipeline(pipeline Pipeline, idx int, propMap map[string]any, runFromNode
 
 	// If auto-trigger then first node has already been run
 	sn := 0
-	if runFromNodeTrigger {
+	if maybeTriggeredByFirstNodeDuration != nil {
 		updatePipelineProgress(idx, sn, 0, Running)
+		start := time.Now()
 		propMap, err = nodes[0][0].Trigger(propMap)
+		took := time.Since(start).Microseconds()
+		nodeStatus := Success
 		if err != nil {
-			updatePipelineProgress(idx, sn, 0, Error)
-			return propMap, cancelRun, errors.New("trigger node for pipeline failed to run")
+			nodeStatus = Error
 		}
-
-		// Has it changed? If not don't run rest of pipeline
+		// TODO: Review if '!changed -> nil error' is valid
 		if !nodes[0][0].Changed(propMap) {
-			updatePipelineProgress(idx, sn, 0, NotRunning)
-			lt := log2.Manual
-			if runFromNodeTrigger {
-				lt = log2.Auto
+			nodeStatus = Unchanged
+			err = nil
+			cancelRun = true
+			log2.WriteLogs(log2.Auto, "SKIPPED", []string{}, [][]any{}, true)
+		}
+		completeNodeProgress(idx, sn, 0, nodeStatus, took, err)
+		updatePipelineProgress(idx, sn, 0, nodeStatus)
+
+		if err != nil || cancelRun {
+			if err != nil {
+				err = errors.Wrap(err, "trigger node for pipeline failed to run")
 			}
-			log2.WriteLogs(lt, "SKIPPED", []string{}, [][]any{}, true)
-			return propMap, true, nil
+			completePipeline(idx, maybeTriggeredByFirstNodeDuration)
+			return propMap, cancelRun, err
 		}
 
 		sn = 1
@@ -186,7 +194,7 @@ func runPipeline(pipeline Pipeline, idx int, propMap map[string]any, runFromNode
 
 	time.Sleep(time.Millisecond)
 
-	resetPipelineProgress(idx)
+	completePipeline(idx, maybeTriggeredByFirstNodeDuration)
 	fmt.Println("FINISHED PIPELINE!")
 
 	return propMap, cancelRun, nil
@@ -217,6 +225,7 @@ func completeNodeProgress(idx int, stageNo int, nodeNo int, status PipelineStatu
 	}
 
 	oldProgress.NodesTimingUs[stageNo][nodeNo] = durationMicroseconds
+	oldProgress.LastUpdate = time.Now().Unix()
 
 	pipelineProgressMutex.Lock()
 	pipelinesProgress[idx] = oldProgress
@@ -231,22 +240,43 @@ func updatePipelineProgress(idx int, stageNo int, nodeNo int, status PipelineSta
 
 	oldProgress.OverallProgress = status
 	oldProgress.StagesProgress[stageNo] = status
+	oldProgress.LastUpdate = time.Now().Unix()
 
 	pipelineProgressMutex.Lock()
 	pipelinesProgress[idx] = oldProgress
 	pipelineProgressMutex.Unlock()
 }
 
-func resetPipelineProgress(idx int) {
+func completePipeline(idx int, maybeTriggeredByFirstNodeDuration *time.Duration) {
 	pipelineProgressMutex.Lock()
 	oldProgress := pipelinesProgress[idx]
 	pipelineProgressMutex.Unlock()
+
+	oldProgress.LastUpdate = time.Now().Unix()
+	if maybeTriggeredByFirstNodeDuration != nil {
+		oldProgress.NextRunAtUnixMilli = time.Now().Add(*maybeTriggeredByFirstNodeDuration).UnixMilli()
+	}
+
+	pipelineProgressMutex.Lock()
+	pipelinesProgress[idx] = oldProgress
+	pipelineProgressMutex.Unlock()
+}
+
+func resetPipelineProgress(idx int, maybeTriggeredByFirstNodeDuration *time.Duration) {
+	pipelineProgressMutex.Lock()
+	oldProgress := pipelinesProgress[idx]
+	pipelineProgressMutex.Unlock()
+
 	oldProgress.OverallProgress = NotRunning
 	for i := range oldProgress.StagesProgress {
 		oldProgress.StagesProgress[i] = NotRunning
 		for j := range oldProgress.NodesProgress[i] {
 			oldProgress.NodesProgress[i][j] = NotRunning
 		}
+	}
+	oldProgress.LastUpdate = time.Now().Unix()
+	if maybeTriggeredByFirstNodeDuration != nil {
+		oldProgress.NextRunAtUnixMilli = time.Now().Add(*maybeTriggeredByFirstNodeDuration).UnixMilli()
 	}
 
 	pipelineProgressMutex.Lock()
@@ -260,6 +290,7 @@ func setPipelineStageTimingUs(idx int, stageNo int, durationMicroseconds int64) 
 	pipelineProgressMutex.Unlock()
 
 	oldProgress.StagesTimingUs[stageNo] = durationMicroseconds
+	oldProgress.LastUpdate = time.Now().Unix()
 
 	pipelineProgressMutex.Lock()
 	pipelinesProgress[idx] = oldProgress
@@ -272,6 +303,7 @@ func setPipelineOverallTimingUs(idx int, durationMicroseconds int64) {
 	pipelineProgressMutex.Unlock()
 
 	oldProgress.OverallTimingUs = durationMicroseconds
+	oldProgress.LastUpdate = time.Now().Unix()
 
 	pipelineProgressMutex.Lock()
 	pipelinesProgress[idx] = oldProgress

@@ -1,7 +1,6 @@
 package pipelines
 
 import (
-	"fmt"
 	"math"
 	"sort"
 	"syscall"
@@ -35,7 +34,7 @@ var (
 	MIN_LOG_AUTO_RUN_LOOP_DURATION_DENOM = int64(MIN_LOG_AUTO_RUN_LOOP_DURATION_PC * 100.0)
 
 	// Magic number to improve accuracy for sleep time at the end of each auto run iteration
-	AUTO_RUN_LOOP_WAIT_OFFSET = (50869 * time.Nanosecond)
+	AUTO_RUN_LOOP_WAIT_OFFSET_NS int64 = 50869
 )
 
 func ScheduleAutoTriggeredPipelines(pls []Pipeline) {
@@ -106,11 +105,11 @@ func ScheduleAutoTriggeredPipelines(pls []Pipeline) {
 	for len(intervals) > 0 {
 		befAutoRunLoop := time.Now()
 		for counter = 0; counter < COUNTER_LIMIT; counter++ {
-			fmt.Printf("c: %d, now: %v\n", counter, time.Now())
 			startLoop := time.Now()
 			if counter > 0 || runPipelinesOnStartup {
 				for i, ivl := range intervals {
-					triggerDue := ((counter * autoRunLoopFrequencyNS) % (int64(ivl) * MIN_AUTO_RUN_LOOP_FREQUENCY_NS)) < autoRunLoopFrequencyNS
+					triggerIntervalNS := int64(ivl) * MIN_AUTO_RUN_LOOP_FREQUENCY_NS
+					triggerDue := ((counter * autoRunLoopFrequencyNS) % triggerIntervalNS) < autoRunLoopFrequencyNS
 					if triggerDue {
 						log2.WriteLogs(log2.Auto, "RUNNING", []string{"INTERVAL", "UNIT"}, [][]any{{intervals[i], MIN_AUTO_RUN_LOOP_FREQUENCY_UNIT}}, true)
 
@@ -119,7 +118,8 @@ func ScheduleAutoTriggeredPipelines(pls []Pipeline) {
 							plIdx := autoTriggeredPipelines[triggerNodeIdx]
 							pl := pls[plIdx]
 
-							go Run(&pl.Name, nil, true)
+							triggerInterval := time.Duration(triggerIntervalNS)
+							go Run(&pl.Name, nil, &triggerInterval)
 						}
 					}
 				}
@@ -157,7 +157,7 @@ func ScheduleAutoTriggeredPipelines(pls []Pipeline) {
 			//		 In practice the interval mightn't be in the microseconds anyway, since it's dynamically retrieved from
 			// 	     `getAutoRunLoopFrequency` and is relative to the smallest interval defined on a pipeline.
 			var (
-				totalSleep       = time.Until(befAutoRunLoop.Add((autoRunLoopFrequency * time.Duration(counter+1)) - AUTO_RUN_LOOP_WAIT_OFFSET)).Nanoseconds()
+				totalSleep       = time.Until(befAutoRunLoop.Add((autoRunLoopFrequency * time.Duration(counter+1)) - time.Duration(AUTO_RUN_LOOP_WAIT_OFFSET_NS))).Nanoseconds()
 				totalSleepNSPart = totalSleep % BILLION
 				totalSleepSPart  = ((totalSleep - totalSleepNSPart) / BILLION)
 				ts               = &syscall.Timespec{Nsec: totalSleepNSPart, Sec: totalSleepSPart}

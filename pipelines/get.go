@@ -29,7 +29,9 @@ type PipelineProgress struct {
 	StagesTimingUs  []int64   `json:"stagesTimingUs"`
 	NodesTimingUs   [][]int64 `json:"nodesTimingUs"`
 
-	NodeErrors []NodeError `json:"nodeErrors"`
+	NodeErrors         []NodeError `json:"nodeErrors"`
+	LastUpdate         int64       `json:"lastUpdate"`
+	NextRunAtUnixMilli int64       `json:"nextRunAtUnixMilli"`
 }
 
 func GetPipelineNames() []string {

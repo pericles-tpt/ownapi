@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/pericles-tpt/ownapi/node"
 	"github.com/pkg/errors"
@@ -52,7 +53,8 @@ func Load(filename string) ([]byte, []Pipeline, error) {
 				Nodes:     make([][]node.BaseNode, 0, len(nodes)),
 			}
 
-			numStageNodes = make([]int, 0, len(nodes))
+			numStageNodes       = make([]int, 0, len(nodes))
+			nextRunAtMS   int64 = 0
 		)
 		for si, stage := range nodes {
 			newPLStage := make([]node.BaseNode, 0, len(stage))
@@ -69,14 +71,24 @@ func Load(filename string) ([]byte, []Pipeline, error) {
 			newPL.Nodes = append(newPL.Nodes, newPLStage)
 		}
 
+		if len(nodes) > 0 && len(nodes[0]) > 0 {
+			maybeNodeTrigger := newPL.Nodes[0][0].GetTrigger()
+			if maybeNodeTrigger != nil {
+				nodeTriggerInterval := (*maybeNodeTrigger).EveryN
+				nextTriggerIntervalMS := (time.Duration(nodeTriggerInterval) * MIN_AUTO_RUN_LOOP_FREQUENCY)
+				nextRunAtMS = time.Now().Add(time.Duration(nextTriggerIntervalMS)).UnixMilli()
+			}
+		}
+
 		pipelines[i] = newPL
 		progress := PipelineProgress{
 			OverallProgress: NotRunning,
 			StagesProgress:  make([]PipelineStatus, len(numStageNodes)),
 			NodesProgress:   make([][]PipelineStatus, len(numStageNodes)),
 
-			StagesTimingUs: make([]int64, len(numStageNodes)),
-			NodesTimingUs:  make([][]int64, len(numStageNodes)),
+			StagesTimingUs:     make([]int64, len(numStageNodes)),
+			NodesTimingUs:      make([][]int64, len(numStageNodes)),
+			NextRunAtUnixMilli: nextRunAtMS,
 		}
 		totalNumNodes := 0
 		for i, num := range numStageNodes {

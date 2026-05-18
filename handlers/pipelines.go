@@ -76,5 +76,5 @@ func RunPipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go pipelines.Run(nil, &idx, false)
+	go pipelines.Run(nil, &idx, nil)
 }
