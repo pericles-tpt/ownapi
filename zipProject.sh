@@ -17,6 +17,8 @@ GOOS=linux GOARCH=amd64 go build -o ./build/
 # Copy required files to `build/` directory
 mkdir -p build/_config
 cp -R _config/* build/_config/
+mkdir -p build/_functions
+cp -R _functions/* build/_functions/
 mkdir -p build/_data
 cp -R _data/* build/_data
 mkdir -p build/dist
