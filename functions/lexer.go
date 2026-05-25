@@ -11,29 +11,38 @@ import (
 	"github.com/pkg/errors"
 )
 
+type FileComponents struct {
+	Imports          []string
+	VarsAndConsts    map[string]string
+	PublicFunctions  map[string][3][]rune
+	PrivateFunctions map[string][3][]rune
+}
+
 var (
 	forbiddenKeywords = []string{"struct", "type"}
 )
 
-func DumbLexer(filename string) ([]string, map[string]string, map[string][3][]rune, map[string][3][]rune, error) {
+func DumbLexer(filename string) (FileComponents, error) {
 	var (
-		imports   = make([]string, 0, 20)
-		vars      = map[string]string{}
-		pubFuncs  = map[string][3][]rune{}
-		privFuncs = map[string][3][]rune{}
+		ret = FileComponents{
+			Imports:          make([]string, 0, 20),
+			VarsAndConsts:    map[string]string{},
+			PublicFunctions:  map[string][3][]rune{},
+			PrivateFunctions: map[string][3][]rune{},
+		}
 
 		err error
 	)
 
 	contents, err := os.ReadFile(filename)
 	if err != nil {
-		return imports, vars, pubFuncs, privFuncs, errors.Wrapf(err, "failed to read file '%s'", filename)
+		return ret, errors.Wrapf(err, "failed to read file '%s'", filename)
 	}
 
 	// Format with `gofmt`, simplifies parsing a lot
 	contents, err = format.Source(contents)
 	if err != nil {
-		return imports, vars, pubFuncs, privFuncs, errors.Wrapf(err, "failed to format go file '%s', likely invalid", filename)
+		return ret, errors.Wrapf(err, "failed to format go file '%s', likely invalid", filename)
 	}
 
 	// TODO: Should use this std parser to replace my custom code below
@@ -53,20 +62,21 @@ func DumbLexer(filename string) ([]string, map[string]string, map[string][3][]ru
 		skipWord                            bool
 	)
 	for i := 0; i < len(runes); i++ {
-		ri = runes[i]
+		var isNewline bool
+		ri, isNewline = getRuneMaybeIncrementNewlineCount(runes, i, &newlineCount)
 		if !unicode.IsSpace(ri) {
 			buf = append(buf, ri)
 			multilineEnd := multiLineComment && (ri == rune('*') && (i+1) < len(runes) && runes[i+1] == rune('/'))
 			if multiLineComment && multilineEnd {
 				multiLineComment = false
 				buf = buf[:0]
+				// Don't need `manualIncrement`, know next rune is '/'
 				i++
 			}
 			continue
 		}
 
-		if ri == rune('\n') {
-			newlineCount++
+		if isNewline {
 			if singleLineComment {
 				buf = buf[:0]
 			}
@@ -85,26 +95,28 @@ func DumbLexer(filename string) ([]string, map[string]string, map[string][3][]ru
 		)
 
 		switch word {
-		case "//": // gut
+		case "//":
 			singleLineComment = true
-		case "/*": // gut
+		case "/*":
 			multiLineComment = true
-		case "package": // gut
+		case "package":
 			skipWord = true
-		case "import": // gut
+		case "import":
 			var newImports []string
 			i, nlc, newImports = extractImports(i, runes)
-			newlineCount += nlc
-			imports = append(imports, newImports...)
-		case "const": // gut
+			// HACK: Here and below `(nlc + 1)` is a fix because the `extract` functions
+			// 		 end on a newline, but it isn't counted by `getRuneMaybeIncrementNewlineCount`
+			newlineCount += (nlc + 1)
+			ret.Imports = append(ret.Imports, newImports...)
+		case "const":
 			fallthrough
-		case "var": // gut
-			i, nlc, err = extractVars(i, runes, vars)
-			newlineCount += nlc
+		case "var":
+			i, nlc, err = extractVars(i, runes, ret.VarsAndConsts)
+			newlineCount += (nlc + 1)
 			if err != nil {
-				return imports, vars, pubFuncs, privFuncs, errors.Wrap(err, "failed to extract const/var block")
+				return ret, errors.Wrap(err, "failed to extract const/var block")
 			}
-		case "func": // nacht gut
+		case "func":
 			var (
 				key      string
 				val      [3][]rune
@@ -112,16 +124,16 @@ func DumbLexer(filename string) ([]string, map[string]string, map[string][3][]ru
 			)
 
 			i, nlc, key, val, isPublic = extractFunc(i, runes)
-			newlineCount += nlc
-			privFuncs[key] = val
+			newlineCount += (nlc + 1)
+			ret.PrivateFunctions[key] = val
 			if isPublic {
-				pubFuncs[key] = val
-				delete(privFuncs, key)
+				ret.PublicFunctions[key] = val
+				delete(ret.PrivateFunctions, key)
 			}
 		// case "goto": // Not valid outside of functions, safe to ignore
 		// case "return": // As above
-		case "type": // gut
-			return imports, vars, pubFuncs, privFuncs, fmt.Errorf("detected disallowed keyword: %s, please refactor to remove it", word)
+		case "type":
+			return ret, fmt.Errorf("detected disallowed keyword: %s, please refactor to remove it", word)
 		default:
 			// Do nothing, for now
 		}
@@ -129,9 +141,7 @@ func DumbLexer(filename string) ([]string, map[string]string, map[string][3][]ru
 		buf = buf[:0]
 	}
 
-	// TODO: Figure out why newline count is wrong
-
-	return imports, vars, pubFuncs, privFuncs, nil
+	return ret, nil
 }
 
 func extractVars(i int, runes []rune, vars map[string]string) (int, int, error) {
@@ -147,13 +157,13 @@ func extractVars(i int, runes []rune, vars map[string]string) (int, int, error) 
 		captureUntilCurly   bool
 	)
 	for j = i; j < len(runes) && rj != endRune; j++ {
-		rj = runes[j]
+		var isNewline bool
+		rj, isNewline = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 		if rj == rune('(') {
 			endRune = rune(')')
 		} else if rj == rune('=') {
 			captureUntilNewline = true
-		} else if rj == rune('\n') {
-			nlc++
+		} else if isNewline {
 			if captureUntilNewline {
 				err := assignIfNotForbidden(key, string(buf), vars)
 				if err != nil {
@@ -163,7 +173,9 @@ func extractVars(i int, runes []rune, vars map[string]string) (int, int, error) 
 				captureUntilNewline = false
 			}
 		} else if unicode.IsSpace(rj) {
-			if (!captureUntilNewline && !captureUntilCurly) && len(buf) > 0 {
+			if captureUntilNewline {
+				buf = append(buf, rj)
+			} else if !captureUntilCurly && len(buf) > 0 {
 				err := assignIfNotForbidden(key, string(buf), vars)
 				if err != nil {
 					return j, nlc, err
@@ -206,11 +218,8 @@ func extractImports(i int, runes []rune) (int, int, []string) {
 		buf     = make([]rune, 0, 50)
 	)
 	for j = i; j < len(runes) && rj != endRune; j++ {
-		rj = runes[j]
+		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 		if unicode.IsSpace(rj) {
-			if rj == rune('\n') {
-				nlc++
-			}
 			if len(buf) > 0 {
 				imports = append(imports, strings.Trim(string(buf), `"`))
 				buf = buf[:0]
@@ -223,10 +232,6 @@ func extractImports(i int, runes []rune) (int, int, []string) {
 		} else {
 			endRune = rune(')')
 		}
-	}
-
-	if endRune == rune('\n') {
-		nlc++
 	}
 
 	last := string(buf)
@@ -251,7 +256,7 @@ func extractFunc(i int, runes []rune) (int, int, string, [3][]rune, bool) {
 
 	// Collect name
 	for j = i; j < len(runes) && rj != rune('('); j++ {
-		rj = maybeIncrementNewlineCount(runes, j, &nlc)
+		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 		if !unicode.IsSpace(rj) {
 			nameBuf = append(nameBuf, rj)
 		}
@@ -259,58 +264,64 @@ func extractFunc(i int, runes []rune) (int, int, string, [3][]rune, bool) {
 	nameBuf = removeBrackets(nameBuf, nil)
 
 	// Collect params
-	var maybeParamsEnd bool
-	for ; j < len(runes); j++ {
-		rj = maybeIncrementNewlineCount(runes, j, &nlc)
-		if maybeParamsEnd {
-			if unicode.IsSpace(rj) {
-				continue
-			} else if rj == rune('{') || rj == rune('(') {
-				break
-			}
+	var curvies int = 1 // first bracket skipped in prev loop
+	for ; j < len(runes) && curvies != 0; j++ {
+		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
+		if rj == rune('(') {
+			curvies++
+		} else if rj == rune(')') {
+			curvies--
 		}
-		maybeParamsEnd = rj == rune(')')
 		paramBuf = append(paramBuf, rj)
 	}
 	paramBuf = removeBrackets(paramBuf, nil)
 
 	// Collect returns
 	var (
-		maybeReturnsEnd bool
-		skipReturns     bool
+		countCurvies    bool
+		foundFirstSpace bool
 	)
 	for ; j < len(runes); j++ {
-		rj = maybeIncrementNewlineCount(runes, j, &nlc)
+		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 		if !unicode.IsSpace(rj) {
-			skipReturns = rj == rune('{')
+			countCurvies = rj == rune('(')
 			break
 		}
 	}
-	if !skipReturns {
-		for ; j < len(runes); j++ {
-			rj = maybeIncrementNewlineCount(runes, j, &nlc)
-
-			if maybeReturnsEnd {
-				if unicode.IsSpace(rj) {
-					continue
-				} else if rj == rune('{') || rj == rune('(') {
-					break
+	if countCurvies {
+		manualIncrement(runes, &j, &nlc)
+		curvies = 1
+	}
+	for ; j < len(runes) && ((countCurvies && curvies != 0) || !countCurvies); j++ {
+		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
+		foundFirstSpace = foundFirstSpace || unicode.IsSpace(rj)
+		if !unicode.IsSpace(rj) {
+			if countCurvies {
+				if rj == rune('(') {
+					curvies++
+				} else if rj == rune(')') {
+					curvies--
 				}
+			} else if foundFirstSpace && rj == rune('{') {
+				break
 			}
-			maybeReturnsEnd = rj == rune(')')
 			returnBuf = append(returnBuf, rj)
 		}
 	}
-	returnBuf = removeBrackets(returnBuf, nil)
+	if countCurvies {
+		returnBuf = removeBrackets(returnBuf, nil)
+	}
 
 	// Collect body
 	for ; j < len(runes) && rj != rune('{'); j++ {
-		rj = maybeIncrementNewlineCount(runes, j, &nlc)
+		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 	}
-	j++
+
+	manualIncrement(runes, &j, &nlc)
+
 	curlies := 1
 	for ; j < len(runes) && curlies != 0; j++ {
-		rj = maybeIncrementNewlineCount(runes, j, &nlc)
+		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 		if rj == rune('{') {
 			curlies++
 		} else if rj == rune('}') {
@@ -359,10 +370,23 @@ func removeBrackets(buf []rune, startEndSet *[2]rune) []rune {
 	return buf[start:end]
 }
 
-func maybeIncrementNewlineCount(runes []rune, i int, newlineCount *int) rune {
-	ret := runes[i]
-	if ret == rune('\n') {
+func getRuneMaybeIncrementNewlineCount(runes []rune, i int, newlineCount *int) (rune, bool) {
+	var (
+		ret       = runes[i]
+		isNewline = ret == rune('\n')
+	)
+	if isNewline {
 		*newlineCount++
 	}
-	return ret
+	return ret, isNewline
+}
+
+func manualIncrement(runes []rune, i *int, newlineCount *int) {
+	if i == nil || newlineCount == nil || *i >= len(runes) {
+		return
+	}
+	if *i < len(runes) && runes[*i] == rune('\n') {
+		*newlineCount++
+	}
+	*i++
 }
