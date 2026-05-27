@@ -104,15 +104,13 @@ func DumbLexer(filename string) (FileComponents, error) {
 		case "import":
 			var newImports []string
 			i, nlc, newImports = extractImports(i, runes)
-			// HACK: Here and below `(nlc + 1)` is a fix because the `extract` functions
-			// 		 end on a newline, but it isn't counted by `getRuneMaybeIncrementNewlineCount`
-			newlineCount += (nlc + 1)
+			newlineCount += nlc
 			ret.Imports = append(ret.Imports, newImports...)
 		case "const":
 			fallthrough
 		case "var":
 			i, nlc, err = extractVars(i, runes, ret.VarsAndConsts)
-			newlineCount += (nlc + 1)
+			newlineCount += nlc
 			if err != nil {
 				return ret, errors.Wrap(err, "failed to extract const/var block")
 			}
@@ -124,7 +122,7 @@ func DumbLexer(filename string) (FileComponents, error) {
 			)
 
 			i, nlc, key, val, isPublic = extractFunc(i, runes)
-			newlineCount += (nlc + 1)
+			newlineCount += nlc
 			ret.PrivateFunctions[key] = val
 			if isPublic {
 				ret.PublicFunctions[key] = val
@@ -204,7 +202,10 @@ func extractVars(i int, runes []rune, vars map[string]string) (int, int, error) 
 	}
 	delete(vars, "")
 
-	return j, nlc, nil
+	// NOTE: Need to do this in all `extract` functions since if they end on a
+	// 		 newline it'll be skipped in the next iteration of the calling context
+	// 		 screwing up the line count
+	return j - 1, nlc, nil
 }
 
 func extractImports(i int, runes []rune) (int, int, []string) {
@@ -239,7 +240,7 @@ func extractImports(i int, runes []rune) (int, int, []string) {
 		imports = append(imports, strings.Trim(last, `"`))
 	}
 
-	return j, nlc, imports
+	return j - 1, nlc, imports
 }
 
 func extractFunc(i int, runes []rune) (int, int, string, [3][]rune, bool) {
