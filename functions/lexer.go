@@ -11,11 +11,21 @@ import (
 	"github.com/pkg/errors"
 )
 
+const ILLEGAL_CHAR_GO = "🟦"
+
 type FileComponents struct {
 	Imports          []string
 	VarsAndConsts    map[string]string
-	PublicFunctions  map[string][3][]rune
-	PrivateFunctions map[string][3][]rune
+	PublicFunctions  map[string]FuncComponent
+	PrivateFunctions map[string]FuncComponent
+}
+
+type FuncComponent struct {
+	Name             []rune
+	SigParams        []rune
+	SigReturns       []rune
+	Body             []rune
+	BodyReturnValues map[string][]rune
 }
 
 var (
@@ -27,8 +37,8 @@ func DumbLexer(filename string) (FileComponents, error) {
 		ret = FileComponents{
 			Imports:          make([]string, 0, 20),
 			VarsAndConsts:    map[string]string{},
-			PublicFunctions:  map[string][3][]rune{},
-			PrivateFunctions: map[string][3][]rune{},
+			PublicFunctions:  map[string]FuncComponent{},
+			PrivateFunctions: map[string]FuncComponent{},
 		}
 
 		err error
@@ -117,7 +127,7 @@ func DumbLexer(filename string) (FileComponents, error) {
 		case "func":
 			var (
 				key      string
-				val      [3][]rune
+				val      FuncComponent
 				isPublic bool
 			)
 
@@ -243,26 +253,29 @@ func extractImports(i int, runes []rune) (int, int, []string) {
 	return j - 1, nlc, imports
 }
 
-func extractFunc(i int, runes []rune) (int, int, string, [3][]rune, bool) {
+func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool) {
 	var (
 		j   = i
 		nlc int
 		rj  rune
 
-		nameBuf   = make([]rune, 0, 100)
-		paramBuf  = make([]rune, 0, 100)
-		returnBuf = make([]rune, 0, 100)
-		bodyBuf   = make([]rune, 0, 1000)
+		val = FuncComponent{
+			Name:             make([]rune, 0, 100),
+			SigParams:        make([]rune, 0, 100),
+			SigReturns:       make([]rune, 0, 100),
+			Body:             make([]rune, 0, 1000),
+			BodyReturnValues: make(map[string][]rune),
+		}
 	)
 
 	// Collect name
 	for j = i; j < len(runes) && rj != rune('('); j++ {
 		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 		if !unicode.IsSpace(rj) {
-			nameBuf = append(nameBuf, rj)
+			val.Name = append(val.Name, rj)
 		}
 	}
-	nameBuf = removeBrackets(nameBuf, nil)
+	val.Name = removeBrackets(val.Name, nil)
 
 	// Collect params
 	var curvies int = 1 // first bracket skipped in prev loop
@@ -273,9 +286,9 @@ func extractFunc(i int, runes []rune) (int, int, string, [3][]rune, bool) {
 		} else if rj == rune(')') {
 			curvies--
 		}
-		paramBuf = append(paramBuf, rj)
+		val.SigParams = append(val.SigParams, rj)
 	}
-	paramBuf = removeBrackets(paramBuf, nil)
+	val.SigParams = removeBrackets(val.SigParams, nil)
 
 	// Collect returns
 	var (
@@ -306,11 +319,11 @@ func extractFunc(i int, runes []rune) (int, int, string, [3][]rune, bool) {
 			} else if foundFirstSpace && rj == rune('{') {
 				break
 			}
-			returnBuf = append(returnBuf, rj)
+			val.SigReturns = append(val.SigReturns, rj)
 		}
 	}
 	if countCurvies {
-		returnBuf = removeBrackets(returnBuf, nil)
+		val.SigReturns = removeBrackets(val.SigReturns, nil)
 	}
 
 	// Collect body
@@ -320,20 +333,74 @@ func extractFunc(i int, runes []rune) (int, int, string, [3][]rune, bool) {
 
 	manualIncrement(runes, &j, &nlc)
 
-	curlies := 1
+	var (
+		curlies     = 1
+		wordBuf     = make([]rune, 0, 50)
+		returnCount int
+	)
 	for ; j < len(runes) && curlies != 0; j++ {
 		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
+
+		if unicode.IsSpace(rj) {
+			w := string(wordBuf)
+			if w == "return" {
+				var (
+					k       int
+					rk      rune
+					endRune *rune = nil
+
+					countCommas        bool
+					foundFirstNonSpace bool
+
+					returnValuesBuf = make([]rune, 0, 100)
+				)
+				for k = j + 1; k < len(runes) && (endRune == nil || rk != *endRune); k++ {
+					var currIsNewline bool
+					rk, currIsNewline = getRuneMaybeIncrementNewlineCount(runes, k, &nlc)
+
+					foundFirstNonSpace = unicode.IsSpace(rk)
+					returnHasBrackets := endRune == nil && foundFirstNonSpace && rk == rune('(')
+					if returnHasBrackets {
+						ne := rune(')')
+						endRune = &ne
+					}
+					countCommas = !returnHasBrackets
+
+					// Below handles cases like:
+					// A: 	return 2, struct{ hello int }{
+					// 			hello: 32,
+					// 		},
+					//		3
+					// Note the open curly followed by the newline and comma followed by newline
+					if countCommas && currIsNewline && (runes[k-1] != rune(',') && runes[k-1] != rune('{')) {
+						break
+					}
+					returnValuesBuf = append(returnValuesBuf, rk)
+				}
+				j = k
+
+				returnPlaceholder := fmt.Sprintf("%s%d", ILLEGAL_CHAR_GO, returnCount)
+				val.Body = append(val.Body, []rune(fmt.Sprintf(" %s\n", returnPlaceholder))...)
+				val.BodyReturnValues[returnPlaceholder] = returnValuesBuf
+				returnCount++
+			}
+
+			wordBuf = wordBuf[:0]
+		} else {
+			wordBuf = append(wordBuf, rj)
+		}
+
 		if rj == rune('{') {
 			curlies++
 		} else if rj == rune('}') {
 			curlies--
 		}
-		bodyBuf = append(bodyBuf, rj)
+		val.Body = append(val.Body, rj)
 	}
-	bodyBuf = removeBrackets(bodyBuf, &[2]rune{'{', '}'})
+	val.Body = removeBrackets(val.Body, &[2]rune{'{', '}'})
 
-	isPublic := unicode.IsUpper(nameBuf[0])
-	return j, nlc, string(nameBuf), [3][]rune{paramBuf, returnBuf, bodyBuf}, isPublic
+	isPublic := unicode.IsUpper(val.Name[0])
+	return j - 1, nlc, string(val.Name), val, isPublic
 }
 
 func assignIfNotForbidden(key, value string, m map[string]string) error {
