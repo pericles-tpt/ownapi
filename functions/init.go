@@ -19,6 +19,14 @@ var (
 	generatedGoPath = fmt.Sprintf("%s/main.go", generatedGoDir)
 	generatedSOPath = fmt.Sprintf("%s/main.so", generatedGoDir)
 )
+
+func Init() (*plugin.Plugin, []FuncComponentSignature, error) {
+	for _, t := range typeWhitelist {
+		arrayTypeWhitelist = append(arrayTypeWhitelist, fmt.Sprintf("[]%s", t))
+	}
+	return Reload()
+}
+
 func Reload() (*plugin.Plugin, []FuncComponentSignature, error) {
 	var (
 		pl                 *plugin.Plugin
