@@ -71,3 +71,9 @@ func OverrideTypeFromJSONMap[T any](original T, overrides map[string]any) (T, er
 
 	return originalWithOverrides, nil
 }
+
+func AddToMap[T comparable, V any](dst map[T]V, src map[T]V) {
+	for k, v := range src {
+		dst[k] = v
+	}
+}
