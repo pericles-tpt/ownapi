@@ -37,7 +37,10 @@ func Reload() (*plugin.Plugin, []FuncComponentSignature, error) {
 	if err != nil {
 		return pl, functionSignatures, errors.Wrapf(err, "failed to read `%s`", customFunctionsPath)
 	}
-	filesContents := make([][]byte, 0, len(dirents))
+	var (
+		fileNames     = make([]string, 0, len(dirents))
+		filesContents = make([][]byte, 0, len(dirents))
+	)
 	for _, de := range dirents {
 		var (
 			name     = de.Name()
@@ -56,16 +59,23 @@ func Reload() (*plugin.Plugin, []FuncComponentSignature, error) {
 			}
 
 			filesContents = append(filesContents, contents)
+			fileNames = append(fileNames, name)
 		}
 	}
 
-	components := make([]FileComponents, 0, len(filesContents))
-	for _, fc := range filesContents {
+	var (
+		components = make([]FileComponents, 0, len(filesContents))
+		fileErrors = make([]string, 0, len(filesContents))
+	)
+	for i, fc := range filesContents {
 		c, err := DumbLexer(fc)
 		if err != nil {
-			// TODO: Error
+			fileErrors = append(fileErrors, fmt.Sprintf("\t%s: %s", fileNames[i], err.Error()))
 		}
 		components = append(components, c)
+	}
+	if len(fileErrors) > 0 {
+		return pl, functionSignatures, fmt.Errorf("failed to lex/parse the following files:\n", strings.Join(fileErrors, "\n"))
 	}
 
 	var numImports, numVars, numConsts, numPubFuncs, numPrivFuncs int
