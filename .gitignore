@@ -11,3 +11,7 @@ _logs/*
 build/*
 .DS_Store
 secrets.txt
+user_functions/generated/*
+!user_functions/generated/.gitkeep
+user_functions/*.go
+!user_functions/main.go
