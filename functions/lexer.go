@@ -2,8 +2,6 @@ package functions
 
 import (
 	"fmt"
-	"go/format"
-	"os"
 	"strings"
 	"unicode"
 
@@ -11,56 +9,47 @@ import (
 	"github.com/pkg/errors"
 )
 
-const ILLEGAL_CHAR_GO = "🟦"
-
 type FileComponents struct {
 	Imports          []string
-	VarsAndConsts    map[string]string
+	Vars             map[string]string
+	Consts           map[string]string
 	PublicFunctions  map[string]FuncComponent
 	PrivateFunctions map[string]FuncComponent
 }
 
 type FuncComponent struct {
-	Name             []rune
-	SigParams        []rune
-	SigReturns       []rune
-	Body             []rune
-	BodyReturnValues map[string][]rune
+	FuncComponentSignature
+	Body             string
+	BodyReturnValues []string
 }
 
-var (
-	forbiddenKeywords = []string{"struct", "type"}
-)
+type FuncComponentSignature struct {
+	Name           string
+	SigParams      Properties
+	SigReturnTypes []string
+}
 
-func DumbLexer(filename string) (FileComponents, error) {
+type Properties struct {
+	Names []string
+	Types []string
+}
+
+const ILLEGAL_CHAR_GO = "🟦"
+
+var forbiddenKeywords = []string{"struct", "type"}
+
+func DumbLexer(contents []byte) (FileComponents, error) {
 	var (
 		ret = FileComponents{
 			Imports:          make([]string, 0, 20),
-			VarsAndConsts:    map[string]string{},
+			Vars:             map[string]string{},
+			Consts:           map[string]string{},
 			PublicFunctions:  map[string]FuncComponent{},
 			PrivateFunctions: map[string]FuncComponent{},
 		}
 
 		err error
 	)
-
-	contents, err := os.ReadFile(filename)
-	if err != nil {
-		return ret, errors.Wrapf(err, "failed to read file '%s'", filename)
-	}
-
-	// Format with `gofmt`, simplifies parsing a lot
-	contents, err = format.Source(contents)
-	if err != nil {
-		return ret, errors.Wrapf(err, "failed to format go file '%s', likely invalid", filename)
-	}
-
-	// TODO: Should use this std parser to replace my custom code below
-	// fset := token.NewFileSet()
-	// _, err = parser.ParseFile(fset, "", contents, parser.AllErrors)
-	// if err != nil {
-	// 	return res, errors.Wrapf(err, "invalid go file '%s'", filename)
-	// }
 
 	runes := []rune(string(contents))
 	var (
@@ -119,7 +108,11 @@ func DumbLexer(filename string) (FileComponents, error) {
 		case "const":
 			fallthrough
 		case "var":
-			i, nlc, err = extractVars(i, runes, ret.VarsAndConsts)
+			if word == "const" {
+				i, nlc, err = extractVars(i, runes, ret.Consts)
+			} else {
+				i, nlc, err = extractVars(i, runes, ret.Vars)
+			}
 			newlineCount += nlc
 			if err != nil {
 				return ret, errors.Wrap(err, "failed to extract const/var block")
@@ -131,7 +124,10 @@ func DumbLexer(filename string) (FileComponents, error) {
 				isPublic bool
 			)
 
-			i, nlc, key, val, isPublic = extractFunc(i, runes)
+			i, nlc, key, val, isPublic, err = extractFunc(i, runes)
+			if err != nil {
+				return ret, errors.Wrapf(err, "failed to extract func with name '%s'", key)
+			}
 			newlineCount += nlc
 			ret.PrivateFunctions[key] = val
 			if isPublic {
@@ -163,6 +159,8 @@ func extractVars(i int, runes []rune, vars map[string]string) (int, int, error) 
 		buf                 = make([]rune, 0, 50)
 		captureUntilNewline bool
 		captureUntilCurly   bool
+
+		nextAssignHasEquals bool
 	)
 	for j = i; j < len(runes) && rj != endRune; j++ {
 		var isNewline bool
@@ -171,9 +169,10 @@ func extractVars(i int, runes []rune, vars map[string]string) (int, int, error) 
 			endRune = rune(')')
 		} else if rj == rune('=') {
 			captureUntilNewline = true
+			nextAssignHasEquals = true
 		} else if isNewline {
 			if captureUntilNewline {
-				err := assignIfNotForbidden(key, string(buf), vars)
+				err := assignIfNotForbidden(key, string(buf), vars, nextAssignHasEquals)
 				if err != nil {
 					return j, nlc, err
 				}
@@ -184,13 +183,14 @@ func extractVars(i int, runes []rune, vars map[string]string) (int, int, error) 
 			if captureUntilNewline {
 				buf = append(buf, rj)
 			} else if !captureUntilCurly && len(buf) > 0 {
-				err := assignIfNotForbidden(key, string(buf), vars)
+				err := assignIfNotForbidden(key, string(buf), vars, nextAssignHasEquals)
 				if err != nil {
 					return j, nlc, err
 				}
 				newKey := string(buf)
 				if len(key) > 0 {
 					newKey = ""
+					nextAssignHasEquals = false
 				}
 				key = newKey
 				buf = buf[:0]
@@ -205,7 +205,7 @@ func extractVars(i int, runes []rune, vars map[string]string) (int, int, error) 
 	}
 
 	if len(buf) > 0 {
-		err := assignIfNotForbidden(key, string(buf), vars)
+		err := assignIfNotForbidden(key, string(buf), vars, nextAssignHasEquals)
 		if err != nil {
 			return j, nlc, err
 		}
@@ -253,32 +253,33 @@ func extractImports(i int, runes []rune) (int, int, []string) {
 	return j - 1, nlc, imports
 }
 
-func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool) {
+func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool, error) {
 	var (
-		j   = i
-		nlc int
-		rj  rune
+		j        = i
+		nlc      int
+		rj       rune
+		isPublic bool
 
 		val = FuncComponent{
-			Name:             make([]rune, 0, 100),
-			SigParams:        make([]rune, 0, 100),
-			SigReturns:       make([]rune, 0, 100),
-			Body:             make([]rune, 0, 1000),
-			BodyReturnValues: make(map[string][]rune),
+			BodyReturnValues: make([]string, 0, 5),
 		}
 	)
 
 	// Collect name
+	nameBuf := make([]rune, 0, 100)
 	for j = i; j < len(runes) && rj != rune('('); j++ {
 		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 		if !unicode.IsSpace(rj) {
-			val.Name = append(val.Name, rj)
+			nameBuf = append(nameBuf, rj)
 		}
 	}
-	val.Name = removeBrackets(val.Name, nil)
+	val.Name = string(removeBrackets(nameBuf, nil))
 
 	// Collect params
-	var curvies int = 1 // first bracket skipped in prev loop
+	var (
+		paramsBuf     = make([]rune, 0, 100)
+		curvies   int = 1
+	)
 	for ; j < len(runes) && curvies != 0; j++ {
 		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 		if rj == rune('(') {
@@ -286,9 +287,17 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool) {
 		} else if rj == rune(')') {
 			curvies--
 		}
-		val.SigParams = append(val.SigParams, rj)
+		paramsBuf = append(paramsBuf, rj)
 	}
-	val.SigParams = removeBrackets(val.SigParams, nil)
+	paramsBuf = removeBrackets(paramsBuf, nil)
+	names, types, err := getArgNameTypes(paramsBuf)
+	if err != nil {
+		return j, nlc, string(val.Name), val, isPublic, errors.Wrap(err, "invalid provided func params")
+	}
+	val.SigParams = Properties{
+		Names: names,
+		Types: types,
+	}
 
 	// Collect returns
 	var (
@@ -306,6 +315,7 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool) {
 		manualIncrement(runes, &j, &nlc)
 		curvies = 1
 	}
+	var returnsBuf = make([]rune, 0, 100)
 	for ; j < len(runes) && ((countCurvies && curvies != 0) || !countCurvies); j++ {
 		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 		foundFirstSpace = foundFirstSpace || unicode.IsSpace(rj)
@@ -319,21 +329,25 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool) {
 			} else if foundFirstSpace && rj == rune('{') {
 				break
 			}
-			val.SigReturns = append(val.SigReturns, rj)
 		}
+		returnsBuf = append(returnsBuf, rj)
 	}
 	if countCurvies {
-		val.SigReturns = removeBrackets(val.SigReturns, nil)
+		returnsBuf = removeBrackets(returnsBuf, nil)
 	}
+	types = getArgTypes(returnsBuf)
+	val.SigReturnTypes = make([]string, len(types))
+	copy(val.SigReturnTypes, types)
 
 	// Collect body
 	for ; j < len(runes) && rj != rune('{'); j++ {
 		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 	}
-
 	manualIncrement(runes, &j, &nlc)
 
 	var (
+		bodyBuf = make([]rune, 0, 1000)
+
 		curlies     = 1
 		wordBuf     = make([]rune, 0, 50)
 		returnCount int
@@ -379,9 +393,9 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool) {
 				}
 				j = k
 
-				returnPlaceholder := fmt.Sprintf("%s%d", ILLEGAL_CHAR_GO, returnCount)
-				val.Body = append(val.Body, []rune(fmt.Sprintf(" %s\n", returnPlaceholder))...)
-				val.BodyReturnValues[returnPlaceholder] = returnValuesBuf
+				returnPlaceholder := getReturnPlaceholder(returnCount)
+				bodyBuf = append(bodyBuf, []rune(fmt.Sprintf(" %s\n", returnPlaceholder))...)
+				val.BodyReturnValues = append(val.BodyReturnValues, string(returnValuesBuf))
 				returnCount++
 			}
 
@@ -395,21 +409,31 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool) {
 		} else if rj == rune('}') {
 			curlies--
 		}
-		val.Body = append(val.Body, rj)
+		bodyBuf = append(bodyBuf, rj)
 	}
-	val.Body = removeBrackets(val.Body, &[2]rune{'{', '}'})
+	bodyBuf = removeBrackets(bodyBuf, &[2]rune{'{', '}'})
+	val.Body = string(bodyBuf)
 
-	isPublic := unicode.IsUpper(val.Name[0])
-	return j - 1, nlc, string(val.Name), val, isPublic
+	isPublic = unicode.IsUpper(rune(val.Name[0]))
+	return j - 1, nlc, string(val.Name), val, isPublic, nil
 }
 
-func assignIfNotForbidden(key, value string, m map[string]string) error {
+func assignIfNotForbidden(key, value string, m map[string]string, assignHasEquals bool) error {
+	keyWithEquals := fmt.Sprintf("%s = ", key)
+	if assignHasEquals {
+		key = keyWithEquals
+	}
+
 	i, containsForbiddenKeyword := utility.SubstringsInTarget(value, forbiddenKeywords)
 	if containsForbiddenKeyword {
 		return fmt.Errorf("forbidden keyword found in value - v: '%v', keyword: '%v'", value, forbiddenKeywords[i])
 	}
 	m[key] = value
 	return nil
+}
+
+func getReturnPlaceholder(idx int) string {
+	return fmt.Sprintf("%s%d", ILLEGAL_CHAR_GO, idx)
 }
 
 func removeBrackets(buf []rune, startEndSet *[2]rune) []rune {
