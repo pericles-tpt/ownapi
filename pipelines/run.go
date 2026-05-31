@@ -108,12 +108,16 @@ func runPipeline(pipeline Pipeline, idx int, propMap map[string]any, maybeTrigge
 			return propMap, cancelRun, err
 		}
 
+		propMap, err = node.UpdateKeys(propMap, sn)
+		if err != nil {
+			return propMap, cancelRun, errors.Wrap(err, "failed to UpdateKeys after auto-trigger first node")
+		}
 		sn = 1
 	}
 
 	start := time.Now()
 	var wg sync.WaitGroup
-	for sn = 0; sn < len(nodes); sn++ {
+	for ; sn < len(nodes); sn++ {
 		var err error
 		stage := nodes[sn]
 		bef := time.Now()
