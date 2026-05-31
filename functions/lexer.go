@@ -24,7 +24,6 @@ type FuncComponent struct {
 }
 
 type FuncComponentSignature struct {
-	Name           string
 	SigParams      Properties
 	SigReturnTypes []string
 }
@@ -257,6 +256,7 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool, er
 	var (
 		j        = i
 		nlc      int
+		name     string
 		rj       rune
 		isPublic bool
 
@@ -273,7 +273,7 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool, er
 			nameBuf = append(nameBuf, rj)
 		}
 	}
-	val.Name = string(removeBrackets(nameBuf, nil))
+	name = string(removeBrackets(nameBuf, nil))
 
 	// Collect params
 	var (
@@ -292,7 +292,7 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool, er
 	paramsBuf = removeBrackets(paramsBuf, nil)
 	names, types, err := getArgNameTypes(paramsBuf)
 	if err != nil {
-		return j, nlc, string(val.Name), val, isPublic, errors.Wrap(err, "invalid provided func params")
+		return j, nlc, name, val, isPublic, errors.Wrap(err, "invalid provided func params")
 	}
 	val.SigParams = Properties{
 		Names: names,
@@ -414,8 +414,8 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool, er
 	bodyBuf = removeBrackets(bodyBuf, &[2]rune{'{', '}'})
 	val.Body = string(bodyBuf)
 
-	isPublic = unicode.IsUpper(rune(val.Name[0]))
-	return j - 1, nlc, string(val.Name), val, isPublic, nil
+	isPublic = unicode.IsUpper(rune(name[0]))
+	return j - 1, nlc, name, val, isPublic, nil
 }
 
 func assignIfNotForbidden(key, value string, m map[string]string, assignHasEquals bool) error {

@@ -2,13 +2,11 @@ package functions
 
 import "fmt"
 
-func GetFunc(name string) (func([]any) ([]any, error), error) {
-	var (
-		ret func([]any) ([]any, error)
-		ok  bool
-	)
-	if ret, ok = funcMap[name]; ok {
-		return ret, nil
+func GetFunc(name string) (CustomFunc, error) {
+	for i, n := range funcNames {
+		if n == name {
+			return funcs[i], nil
+		}
 	}
-	return ret, fmt.Errorf("failed to find func with name '%s'", name)
+	return CustomFunc{}, fmt.Errorf("failed to find custom func with name '%s'", name)
 }
