@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,6 +32,7 @@ type HttpNodeConfig struct {
 	//			e.g. ?location=Sydney or ?location=Melbourne for a weather node
 	Headers                  *map[string]string `json:"headers"`
 	Params                   *map[string]string `json:"query_params"`
+	MultipartFormParams      *map[string]string `json:"multi_part_form_params"`
 	UserAgent                *string            `json:"user_agent"`
 	UseHeadAndCacheResponses bool               `json:"use_head_and_cache_responses"`
 
@@ -92,10 +94,8 @@ func CreateHTTPNode(propMap map[string]any, cfg HttpNodeConfig) (HTTPNode, error
 	return ret, nil
 }
 
-func (hn *HTTPNode) Trigger(propMap map[string]any) (map[string]any, error) {
+func (hn *HTTPNode) Trigger(propMap map[string]any, useCache bool) (map[string]any, error) {
 	var outputMap = map[string]any{}
-	// TODO: Should this return `isCachedOutput` as the first return value?
-	// var isCachedOutput bool
 	newCfg, err := utility.OverrideTypeFromJSONMap(hn.Config, propMap)
 	if err != nil {
 		return outputMap, errors.Wrap(err, "failed to override `cfg` with map values")
@@ -105,7 +105,7 @@ func (hn *HTTPNode) Trigger(propMap map[string]any) (map[string]any, error) {
 	}(hn, hn.Config)
 	hn.Config = newCfg
 
-	if hn.Config.UseHeadAndCacheResponses {
+	if useCache && hn.Config.UseHeadAndCacheResponses {
 		modified, err := hn.triggerHead(propMap)
 		if !modified && err == nil {
 			// Failing to read from local cache is NOT a failure condition, can still do full request
@@ -117,11 +117,51 @@ func (hn *HTTPNode) Trigger(propMap map[string]any) (map[string]any, error) {
 		}
 	}
 
+	var (
+		hasBody             bool
+		formDataContentType *string
+		body                bytes.Buffer
+	)
+	if hn.Config.MultipartFormParams != nil {
+		newMultipartFormParams, err := utility.OverrideTypeFromJSONMap(*hn.Config.MultipartFormParams, propMap)
+		if err != nil {
+			return outputMap, errors.Wrap(err, "failed to override non-nil multipart form")
+		}
+		hn.Config.MultipartFormParams = &newMultipartFormParams
+
+		writer := multipart.NewWriter(&body)
+		for key, val := range *hn.Config.MultipartFormParams {
+			// TODO: Improve this, probably not the most secure especially storing it in a string
+			_, val, err = secrets.MaybeReplaceSecretsInString(val)
+			if err != nil {
+				return outputMap, errors.Wrap(err, "failed to check if value in multipart form is a secret")
+			}
+
+			err := writer.WriteField(key, val)
+			if err != nil {
+				return outputMap, errors.Wrap(err, "failed to write multi-part form")
+			}
+		}
+		ct := writer.FormDataContentType()
+		formDataContentType = &ct
+		writer.Close()
+
+		hasBody = true
+	}
+
 	urlWithParams, err := hn.maybeAddURLPathAndQueryParams(propMap)
 	if err != nil {
 		return outputMap, errors.Wrap(err, "failed to modify base url")
 	}
-	req, err := http.NewRequest(hn.Config.Method, urlWithParams, nil)
+	var req *http.Request
+	if hasBody {
+		req, err = http.NewRequest(hn.Config.Method, urlWithParams, &body)
+		if formDataContentType != nil {
+			req.Header.Set("Content-Type", *formDataContentType)
+		}
+	} else {
+		req, err = http.NewRequest(hn.Config.Method, urlWithParams, nil)
+	}
 	if err != nil {
 		return outputMap, err
 	}
@@ -154,7 +194,7 @@ func (hn *HTTPNode) Trigger(propMap map[string]any) (map[string]any, error) {
 		return outputMap, err
 	}
 
-	if hn.Config.UseHeadAndCacheResponses {
+	if useCache && hn.Config.UseHeadAndCacheResponses {
 		hn.writeCachedResponseData(buf.Bytes())
 	}
 	outputMap[hn.Config.OutputKey] = buf.Bytes()
@@ -162,66 +202,54 @@ func (hn *HTTPNode) Trigger(propMap map[string]any) (map[string]any, error) {
 	return outputMap, nil
 }
 
-func (hn *HTTPNode) triggerNoCache(propMap map[string]any) (map[string]any, error) {
-	var outputMap = map[string]any{}
-	newCfg, err := utility.OverrideTypeFromJSONMap(hn.Config, propMap)
-	if err != nil {
-		return outputMap, errors.Wrap(err, "failed to override `cfg` with map values")
-	}
-	defer func(hn *HTTPNode, oldCfg HttpNodeConfig) {
-		hn.Config = oldCfg
-	}(hn, hn.Config)
-	hn.Config = newCfg
-
-	urlWithParams, err := hn.maybeAddURLPathAndQueryParams(propMap)
-	if err != nil {
-		return outputMap, errors.Wrap(err, "failed to modify base url")
-	}
-	req, err := http.NewRequest(hn.Config.Method, urlWithParams, nil)
-	if err != nil {
-		return outputMap, err
-	}
-
-	if hn.Config.Headers != nil {
-		for k, v := range *hn.Config.Headers {
-			req.Header.Set(k, v)
-		}
-	}
-
-	if hn.Config.UserAgent != nil {
-		req.Header.Set("User-Agent", *hn.Config.UserAgent)
-	}
-
-	client := &http.Client{}
-	resp, err := replaceSecretsThenDo(client, req)
-	if err != nil {
-		return outputMap, err
-	}
-	defer resp.Body.Close()
-
-	isSuccess := resp.StatusCode >= 200 && resp.StatusCode < 300
-	if !isSuccess {
-		return outputMap, fmt.Errorf("response code for HTTP request not in 'success' range - code: %d, message: '%s'", resp.StatusCode, resp.Status)
-	}
-
-	buf := bytes.Buffer{}
-	_, err = buf.ReadFrom(resp.Body)
-	if err != nil {
-		return outputMap, err
-	}
-
-	outputMap[hn.Config.OutputKey] = buf.Bytes()
-	return outputMap, nil
-}
-
 func (hn *HTTPNode) triggerHead(propMap map[string]any) (bool, error) {
 	var modified bool
+
+	var (
+		hasBody             bool
+		formDataContentType *string
+		body                bytes.Buffer
+	)
+	if hn.Config.MultipartFormParams != nil {
+		newMultipartFormParams, err := utility.OverrideTypeFromJSONMap(*hn.Config.MultipartFormParams, propMap)
+		if err != nil {
+			return modified, errors.Wrap(err, "failed to override non-nil multipart form")
+		}
+		hn.Config.MultipartFormParams = &newMultipartFormParams
+
+		writer := multipart.NewWriter(&body)
+		for key, val := range *hn.Config.MultipartFormParams {
+			// TODO: Improve this, probably not the most secure especially storing it in a string
+			_, val, err = secrets.MaybeReplaceSecretsInString(val)
+			if err != nil {
+				return modified, errors.Wrap(err, "failed to check if value in multipart form is a secret")
+			}
+
+			err := writer.WriteField(key, val)
+			if err != nil {
+				return modified, errors.Wrap(err, "failed to write multi-part form")
+			}
+		}
+		ct := writer.FormDataContentType()
+		formDataContentType = &ct
+		writer.Close()
+
+		hasBody = true
+	}
 
 	urlWithParams, err := hn.maybeAddURLPathAndQueryParams(propMap)
 	if err != nil {
 		return modified, errors.Wrap(err, "failed to modify base url")
 	}
-	req, err := http.NewRequest(http.MethodHead, urlWithParams, nil)
+	var req *http.Request
+	if hasBody {
+		req, err = http.NewRequest(hn.Config.Method, urlWithParams, &body)
+		if formDataContentType != nil {
+			req.Header.Set("Content-Type", *formDataContentType)
+		}
+	} else {
+		req, err = http.NewRequest(hn.Config.Method, urlWithParams, nil)
+	}
 	if err != nil {
 		return modified, err
 	}
