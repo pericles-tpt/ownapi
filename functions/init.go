@@ -124,7 +124,7 @@ func Reload() error {
 
 	// TODO: Make sure compilation here matches the main binary, otherwise could have problems
 	// SOURCE: https://pkg.go.dev/plugin#hdr-Warnings
-	cmd := exec.Command("go", "build", "-buildmode=plugin", "-o", generatedSOPath, generatedGoPath)
+	cmd := exec.Command("go", "build", "-trimpath", "-buildmode=plugin", "-o", generatedSOPath, generatedGoPath)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return errors.Wrapf(err, "failed to build plugin, out: %s", out)

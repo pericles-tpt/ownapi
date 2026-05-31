@@ -12,7 +12,7 @@ fi
 npx webpack
 
 # Build frontend Go code
-GOOS=linux GOARCH=amd64 go build -o ./build/
+GOOS=linux GOARCH=amd64 go build -trimpath -o ./build/
 
 # Copy required files to `build/` directory
 mkdir -p build/_config
