@@ -112,15 +112,16 @@ func (un *USBCopyFromNode) regenerateHash() error {
 }
 
 func (un *USBCopyFromNode) Trigger(propMap map[string]any) (map[string]any, error) {
+	outputMap := map[string]any{}
 	destInData := fmt.Sprintf("./_data/files/%s", un.Config.Hash)
 	_, err := os.Stat(destInData)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return propMap, errors.Wrap(err, "failed to create dest folder")
+			return outputMap, errors.Wrap(err, "failed to create dest folder")
 		} else {
 			err = os.Mkdir(destInData, 0760)
 			if err != nil {
-				return propMap, errors.Wrap(err, "failed to create dest folder")
+				return outputMap, errors.Wrap(err, "failed to create dest folder")
 			}
 		}
 	}
@@ -129,19 +130,19 @@ func (un *USBCopyFromNode) Trigger(propMap map[string]any) (map[string]any, erro
 	case MTP:
 		dev, err := gomtp.GetDeviceBySerialNumber(un.Config.SerialNo)
 		if err != nil {
-			return propMap, errors.Wrapf(err, "failed to retrieve device matching serial number: %s", un.Config.SerialNo)
+			return outputMap, errors.Wrapf(err, "failed to retrieve device matching serial number: %s", un.Config.SerialNo)
 		}
 		defer dev.ReleaseDevice()
 
 		err = dev.GetStorage()
 		if err != nil {
-			return propMap, errors.Wrapf(err, "failed to get storage for mtp device")
+			return outputMap, errors.Wrapf(err, "failed to get storage for mtp device")
 		}
 
 		// TODO: Review this, could be more than one for other MTP devices, just using this for my Garmin
 		files, _, err := dev.GetFilesAndFolders(dev.Storage[0].Id, 0)
 		if err != nil {
-			return propMap, errors.Wrapf(err, "failed to get files and folders for first storage id")
+			return outputMap, errors.Wrapf(err, "failed to get files and folders for first storage id")
 		}
 
 		var maybeParentChildIdMap = map[uint32]struct {
@@ -214,7 +215,7 @@ func (un *USBCopyFromNode) Trigger(propMap map[string]any) (map[string]any, erro
 
 			fs, err := os.Stat(localPath)
 			if err != nil && !os.IsNotExist(err) {
-				return propMap, errors.Wrap(err, "unexpected stat error")
+				return outputMap, errors.Wrap(err, "unexpected stat error")
 			}
 			exists := err == nil
 
@@ -226,7 +227,7 @@ func (un *USBCopyFromNode) Trigger(propMap map[string]any) (map[string]any, erro
 				if !exists {
 					err = os.Mkdir(localPath, 0760)
 					if err != nil {
-						return propMap, errors.Wrapf(err, "failed to create directory: %s", localPath)
+						return outputMap, errors.Wrapf(err, "failed to create directory: %s", localPath)
 					}
 				}
 				// TODO: How to handle queue where items could be [blah/, ha/, something/, foo/bar/]. Can't keep appending names because it'll nest them incorrectly...
@@ -259,7 +260,7 @@ func (un *USBCopyFromNode) Trigger(propMap map[string]any) (map[string]any, erro
 				err = dev.GetFileToFile(n.Id, localPath)
 				if err != nil {
 					basename := strings.Split(localPath, "/")[len(localPath)-1]
-					return propMap, errors.Wrapf(err, "failed to copy '%s' to local directory", basename)
+					return outputMap, errors.Wrapf(err, "failed to copy '%s' to local directory", basename)
 				}
 				copied = true
 			} else { // exists
@@ -273,17 +274,17 @@ func (un *USBCopyFromNode) Trigger(propMap map[string]any) (map[string]any, erro
 					tmpName := fmt.Sprintf("%s.tmp", localPath)
 					err = os.Rename(localPath, tmpName)
 					if err != nil {
-						return propMap, errors.Wrapf(err, "failed to rename original file: '%s' to tmp file before MODIFY", localPath)
+						return outputMap, errors.Wrapf(err, "failed to rename original file: '%s' to tmp file before MODIFY", localPath)
 					}
 					// Copy file to localpath
 					err = dev.GetFileToFile(n.Id, localPath)
 					if err != nil {
 						err = os.Rename(tmpName, localPath)
 						if err != nil {
-							return propMap, errors.Wrapf(err, "failed to revert tmp file: '%s' to original file after failed MODIFY", tmpName)
+							return outputMap, errors.Wrapf(err, "failed to revert tmp file: '%s' to original file after failed MODIFY", tmpName)
 						}
 						basename := strings.Split(localPath, "/")[len(localPath)-1]
-						return propMap, errors.Wrapf(err, "failed to copy '%s' to local directory", basename)
+						return outputMap, errors.Wrapf(err, "failed to copy '%s' to local directory", basename)
 					}
 					copied = true
 					// Remove tmp file after successful copy
@@ -299,12 +300,11 @@ func (un *USBCopyFromNode) Trigger(propMap map[string]any) (map[string]any, erro
 			}
 		}
 
-		propMap["output:copied_files"] = copiedFilePaths
-		return propMap, nil
+		outputMap["output:copied_files"] = copiedFilePaths
+		return outputMap, nil
 	default:
-		return propMap, fmt.Errorf("no `Transfer` method provided for protocol: %v", un.Config.Protocol)
+		return outputMap, fmt.Errorf("no `Transfer` method provided for protocol: %v", un.Config.Protocol)
 	}
-	return propMap, nil
 }
 
 func (un *USBCopyFromNode) Changed(propMap map[string]any) bool {
@@ -340,7 +340,7 @@ func (un *USBCopyFromNode) readCachedResponseData() *[]byte {
 func (un *USBCopyFromNode) writeCachedResponseData(data []byte) {
 }
 func (un *USBCopyFromNode) triggerNoCache(propMap map[string]any) (map[string]any, error) {
-	return propMap, nil
+	return un.Trigger(propMap)
 }
 func (un *USBCopyFromNode) GetTrigger() *Trigger {
 	return un.Config.NodeTrigger

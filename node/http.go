@@ -111,7 +111,7 @@ func (hn *HTTPNode) Trigger(propMap map[string]any) (map[string]any, error) {
 			// Failing to read from local cache is NOT a failure condition, can still do full request
 			lastResult := hn.readCachedResponseData()
 			if lastResult != nil {
-				propMap[hn.Config.OutputKey] = *lastResult
+				outputMap[hn.Config.OutputKey] = *lastResult
 				return outputMap, nil
 			}
 		}
@@ -157,9 +157,7 @@ func (hn *HTTPNode) Trigger(propMap map[string]any) (map[string]any, error) {
 	if hn.Config.UseHeadAndCacheResponses {
 		hn.writeCachedResponseData(buf.Bytes())
 	}
-
 	outputMap[hn.Config.OutputKey] = buf.Bytes()
-	fmt.Println("RESP SIZE IS: ", buf.Len())
 
 	return outputMap, nil
 }
@@ -213,7 +211,6 @@ func (hn *HTTPNode) triggerNoCache(propMap map[string]any) (map[string]any, erro
 	}
 
 	outputMap[hn.Config.OutputKey] = buf.Bytes()
-	fmt.Println("RESP SIZE IS: ", buf.Len())
 	return outputMap, nil
 }
 

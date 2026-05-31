@@ -100,7 +100,7 @@ func (cn *CustomNode) Trigger(propMap map[string]any) (map[string]any, error) {
 		if !strings.HasPrefix(key, "output:") {
 			key = fmt.Sprintf("output:%s", key)
 		}
-		propMap[key] = val
+		outputMap[key] = val
 	}
 
 	return outputMap, nil
