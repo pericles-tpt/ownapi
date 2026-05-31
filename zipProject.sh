@@ -27,6 +27,8 @@ mkdir -p build/node_modules
 cp -R node_modules/* build/node_modules
 mkdir -p build/src
 cp -R src/* build/src
+mkdir -p build/user_functions
+cp -R user_functions/* build/user_functions
 cp *.json build/
 cp README.md build/
 cp secrets.txt build/
