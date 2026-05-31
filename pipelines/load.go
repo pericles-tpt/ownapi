@@ -56,6 +56,11 @@ func Load(filename string) ([]byte, []Pipeline, error) {
 			numStageNodes       = make([]int, 0, len(nodes))
 			nextRunAtMS   int64 = 0
 		)
+
+		if len(nodes) != len(nodeTypes) {
+			return fbs, pipelines, fmt.Errorf("unequal number of nodes and nodeTypes in pipeline '%s', %d != %d", pipeline.Name, len(nodes), len(nodeTypes))
+		}
+
 		for si, stage := range nodes {
 			newPLStage := make([]node.BaseNode, 0, len(stage))
 			for ni, node := range stage {
