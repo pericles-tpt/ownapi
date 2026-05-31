@@ -179,6 +179,17 @@ func getBaseNode(maybeNode any, nodeType node.NodeType, reload bool) (node.BaseN
 			return ret, errors.Wrap(err, "failed to create USBCopy node")
 		}
 		return &jn, nil
+	case node.Custom:
+		maybeCN := node.CustomNode{}
+		err = json.Unmarshal(bs, &maybeCN)
+		if err != nil {
+			return ret, errors.Wrap(err, "failed to unmarshal JSON for Custom node type")
+		}
+		cn, err := node.CreateCustomNode(propMap, maybeCN.Config)
+		if err != nil {
+			return ret, errors.Wrap(err, "failed to create Custom node")
+		}
+		return &cn, nil
 	}
 	return ret, fmt.Errorf("failed to find node matching type: %v", nodeType)
 }

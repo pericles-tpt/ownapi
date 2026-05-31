@@ -13,9 +13,10 @@ var (
 	dataRoot = "_data"
 	stages   = []string{"output"}
 	nodeMap  = map[string][]string{
-		"http": {},
-		"json": {},
-		"usb":  {"copy"},
+		"http":   {},
+		"json":   {},
+		"usb":    {"copy"},
+		"custom": {},
 	}
 )
 
