@@ -84,7 +84,7 @@ func runPipeline(pipeline Pipeline, idx int, propMap map[string]any, maybeTrigge
 	if maybeTriggeredByFirstNodeDuration != nil {
 		updatePipelineProgress(idx, sn, 0, Running)
 		start := time.Now()
-		propMap, err = nodes[0][0].Trigger(propMap)
+		propMap, err = nodes[0][0].Trigger(propMap, true)
 		took := time.Since(start).Microseconds()
 		nodeStatus := Success
 		if err != nil {
@@ -141,7 +141,7 @@ func runPipeline(pipeline Pipeline, idx int, propMap map[string]any, maybeTrigge
 				var err error
 				nodeStatus := Success
 				omMx.Lock()
-				if outputMaps[nn], err = s.Trigger(propMap); err != nil {
+				if outputMaps[nn], err = s.Trigger(propMap, true); err != nil {
 					// Send error to stage-specific error channel
 					stageErrCh <- err
 					nodeStatus = Error

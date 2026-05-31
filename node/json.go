@@ -40,7 +40,7 @@ func CreateJSONNode(propMap map[string]any, cfg JSONNodeConfig) (JSONNode, error
 	return ret, nil
 }
 
-func (jn *JSONNode) triggerNoCache(propMap map[string]any) (map[string]any, error) {
+func (jn *JSONNode) Trigger(propMap map[string]any, useCache bool) (map[string]any, error) {
 	var outputMap = map[string]any{}
 	if jn.Config.ExtractNodes == nil {
 		return outputMap, errors.New("unable to extract data from JSON response, `ExtractNodes` not defined")
@@ -66,44 +66,16 @@ func (jn *JSONNode) triggerNoCache(propMap map[string]any) (map[string]any, erro
 		outputMap[fmt.Sprintf("output:%s", k)] = v
 	}
 
-	return outputMap, nil
-}
-
-func (jn *JSONNode) Trigger(propMap map[string]any) (map[string]any, error) {
-	var outputMap = map[string]any{}
-
-	if jn.Config.ExtractNodes == nil {
-		return outputMap, errors.New("unable to extract data from JSON response, `ExtractNodes` not defined")
-	}
-
-	input, err := jn.maybeConsumeInput(propMap)
-	if err != nil {
-		return outputMap, err
-	}
-
-	var anyJson any
-	err = json.Unmarshal(input, &anyJson)
-	if err != nil {
-		return outputMap, errors.Wrap(err, "failed to unmarshal response body as expected JSON")
-	}
-
-	vals, err := utility.TraverseJSONExtractValues(anyJson, jn.Config.ExtractNodes)
-	if err != nil {
-		return outputMap, errors.Wrap(err, "failed to extract JSON values")
-	}
-
-	for k, v := range vals {
-		outputMap[fmt.Sprintf("output:%s", k)] = v
-	}
-
-	data, err := json.Marshal(vals)
-	if err != nil {
-		return outputMap, errors.Wrap(err, "failed to marshal extracted JSON values to bytes")
-	}
-	path := fmt.Sprintf("%s/%s", jsonResponseCacheOutputPath, jn.Config.Hash)
-	err = os.WriteFile(path, data, 0660)
-	if err != nil {
-		return outputMap, errors.Wrap(err, "failed to write output of JSON HTTP request to file")
+	if useCache {
+		data, err := json.Marshal(vals)
+		if err != nil {
+			return outputMap, errors.Wrap(err, "failed to marshal extracted JSON values to bytes")
+		}
+		path := fmt.Sprintf("%s/%s", jsonResponseCacheOutputPath, jn.Config.Hash)
+		err = os.WriteFile(path, data, 0660)
+		if err != nil {
+			return outputMap, errors.Wrap(err, "failed to write output of JSON HTTP request to file")
+		}
 	}
 
 	return outputMap, nil

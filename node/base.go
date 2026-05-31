@@ -10,8 +10,7 @@ import (
 )
 
 type BaseNode interface {
-	Trigger(propMap map[string]any) (map[string]any, error)
-	triggerNoCache(propMap map[string]any) (map[string]any, error)
+	Trigger(propMap map[string]any, useCache bool) (map[string]any, error)
 	regenerateHash() error
 	// TODO: Review whether these are necessary
 	readCachedResponseData() *[]byte

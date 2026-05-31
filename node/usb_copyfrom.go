@@ -111,7 +111,7 @@ func (un *USBCopyFromNode) regenerateHash() error {
 	return nil
 }
 
-func (un *USBCopyFromNode) Trigger(propMap map[string]any) (map[string]any, error) {
+func (un *USBCopyFromNode) Trigger(propMap map[string]any, useCache bool) (map[string]any, error) {
 	outputMap := map[string]any{}
 	destInData := fmt.Sprintf("./_data/files/%s", un.Config.Hash)
 	_, err := os.Stat(destInData)
@@ -338,9 +338,6 @@ func (un *USBCopyFromNode) readCachedResponseData() *[]byte {
 	return nil
 }
 func (un *USBCopyFromNode) writeCachedResponseData(data []byte) {
-}
-func (un *USBCopyFromNode) triggerNoCache(propMap map[string]any) (map[string]any, error) {
-	return un.Trigger(propMap)
 }
 func (un *USBCopyFromNode) GetTrigger() *Trigger {
 	return un.Config.NodeTrigger

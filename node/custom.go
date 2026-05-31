@@ -67,7 +67,7 @@ func CreateCustomNode(propMap map[string]any, cfg CustomNodeConfig) (CustomNode,
 	return ret, nil
 }
 
-func (cn *CustomNode) Trigger(propMap map[string]any) (map[string]any, error) {
+func (cn *CustomNode) Trigger(propMap map[string]any, useCache bool) (map[string]any, error) {
 	var outputMap = map[string]any{}
 	newCfg, err := utility.OverrideTypeFromJSONMap(cn.Config, propMap)
 	if err != nil {
@@ -131,9 +131,6 @@ func (cn *CustomNode) readCachedResponseData() *[]byte {
 	return nil
 }
 func (cn *CustomNode) writeCachedResponseData(data []byte) {
-}
-func (cn *CustomNode) triggerNoCache(propMap map[string]any) (map[string]any, error) {
-	return cn.Trigger(propMap)
 }
 func (cn *CustomNode) Changed(propsMap map[string]any) bool {
 	return true
