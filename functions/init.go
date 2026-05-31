@@ -18,24 +18,24 @@ var (
 	generatedGoDir  = fmt.Sprintf("%s/generated", customFunctionsPath)
 	generatedGoPath = fmt.Sprintf("%s/main.go", generatedGoDir)
 	generatedSOPath = fmt.Sprintf("%s/main.so", generatedGoDir)
+
+	pl      *plugin.Plugin
+	funcMap = map[string]func([]any) ([]any, error){}
 )
 
-func Init() (*plugin.Plugin, []FuncComponentSignature, error) {
+func Init() ([]FuncComponentSignature, error) {
 	for _, t := range typeWhitelist {
 		arrayTypeWhitelist = append(arrayTypeWhitelist, fmt.Sprintf("[]%s", t))
 	}
 	return Reload()
 }
 
-func Reload() (*plugin.Plugin, []FuncComponentSignature, error) {
-	var (
-		pl                 *plugin.Plugin
-		functionSignatures []FuncComponentSignature
-	)
+func Reload() ([]FuncComponentSignature, error) {
+	var functionSignatures []FuncComponentSignature
 
 	dirents, err := os.ReadDir(customFunctionsPath)
 	if err != nil {
-		return pl, functionSignatures, errors.Wrapf(err, "failed to read `%s`", customFunctionsPath)
+		return functionSignatures, errors.Wrapf(err, "failed to read `%s`", customFunctionsPath)
 	}
 	var (
 		fileNames     = make([]string, 0, len(dirents))
@@ -49,13 +49,13 @@ func Reload() (*plugin.Plugin, []FuncComponentSignature, error) {
 		if de.Type().IsRegular() && strings.HasSuffix(name, ".go") && name != "main.go" {
 			contents, err := os.ReadFile(filename)
 			if err != nil {
-				return pl, functionSignatures, errors.Wrapf(err, "failed to read file '%s'", filename)
+				return functionSignatures, errors.Wrapf(err, "failed to read file '%s'", filename)
 			}
 
 			// Format with `gofmt`, simplifies parsing a lot
 			contents, err = format.Source(contents)
 			if err != nil {
-				return pl, functionSignatures, errors.Wrapf(err, "failed to format go file '%s', likely invalid", filename)
+				return functionSignatures, errors.Wrapf(err, "failed to format go file '%s', likely invalid", filename)
 			}
 
 			filesContents = append(filesContents, contents)
@@ -75,7 +75,7 @@ func Reload() (*plugin.Plugin, []FuncComponentSignature, error) {
 		components = append(components, c)
 	}
 	if len(fileErrors) > 0 {
-		return pl, functionSignatures, fmt.Errorf("failed to lex/parse the following files:\n", strings.Join(fileErrors, "\n"))
+		return functionSignatures, fmt.Errorf("failed to lex/parse the following files: %s\n", strings.Join(fileErrors, "\n"))
 	}
 
 	var numImports, numVars, numConsts, numPubFuncs, numPrivFuncs int
@@ -113,7 +113,7 @@ func Reload() (*plugin.Plugin, []FuncComponentSignature, error) {
 	}
 	err = RegenerateUserCodeAsSharedObjectGo(combinedComponents, generatedGoPath)
 	if err != nil {
-		return pl, functionSignatures, errors.Wrap(err, "failed to generate output go from provided custom_functions")
+		return functionSignatures, errors.Wrap(err, "failed to generate output go from provided custom_functions")
 	}
 
 	// TODO: Make sure compilation here matches the main binary, otherwise could have problems
@@ -121,12 +121,27 @@ func Reload() (*plugin.Plugin, []FuncComponentSignature, error) {
 	cmd := exec.Command("go", "build", "-buildmode=plugin", "-o", generatedSOPath, generatedGoPath)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return pl, functionSignatures, errors.Wrapf(err, "failed to build plugin, out: %s", out)
+		return functionSignatures, errors.Wrapf(err, "failed to build plugin, out: %s", out)
 	}
 
 	pl, err = plugin.Open(generatedSOPath)
 	if err != nil {
-		return pl, functionSignatures, errors.Wrap(err, "failed to open generated plugin")
+		return functionSignatures, errors.Wrap(err, "failed to open generated plugin")
 	}
-	return pl, functionSignatures, nil
+
+	// Populate lookup
+	var ok bool
+	funcMap = make(map[string]func([]any) ([]any, error), len(functionSignatures))
+	for _, f := range functionSignatures {
+		fnc, err := pl.Lookup(f.Name)
+		if err != nil {
+			return functionSignatures, errors.Wrapf(err, "failed to find function in plugin with name '%s'", f.Name)
+		}
+
+		if funcMap[f.Name], ok = fnc.(func([]any) ([]any, error)); !ok {
+			return functionSignatures, fmt.Errorf("failed to assert function with name '%s', as expected type `func([]any) ([]any, error)`", f.Name)
+		}
+	}
+
+	return functionSignatures, nil
 }
