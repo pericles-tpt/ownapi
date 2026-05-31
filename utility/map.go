@@ -48,9 +48,15 @@ func OverrideTypeFromJSONMap[T any](original T, overrides map[string]any) (T, er
 		return original, errors.Wrap(err, "failed to unmarshal original to a map")
 	}
 	var modified bool
-	for k := range updatedMap {
-		expKey := fmt.Sprintf("input:%s", k)
+	for k, v := range updatedMap {
+		var (
+			expKey = fmt.Sprintf("input:%s", k)
+			vAsKey = fmt.Sprint(v)
+		)
 		if newV, ok := overrides[expKey]; ok {
+			updatedMap[k] = newV
+			modified = true
+		} else if newV, ok := overrides[vAsKey]; ok {
 			updatedMap[k] = newV
 			modified = true
 		}
