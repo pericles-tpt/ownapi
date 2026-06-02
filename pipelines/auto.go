@@ -3,7 +3,6 @@ package pipelines
 import (
 	"math"
 	"sort"
-	"syscall"
 	"time"
 
 	log2 "github.com/pericles-tpt/ownapi/log"
@@ -15,8 +14,6 @@ import (
 //
 //	(barely) be a high enough buffer
 const (
-	BILLION = 1_000_000_000
-
 	MIN_AUTO_RUN_LOOP_FREQUENCY          = 250 * time.Microsecond
 	MAX_AUTO_RUN_LOOP_FREQUENCY_MULTIPLE = 366 * 24 * 3600 * 1000 * 4
 )
@@ -32,9 +29,6 @@ var (
 
 	MIN_LOG_AUTO_RUN_LOOP_DURATION_PC    = 0.05
 	MIN_LOG_AUTO_RUN_LOOP_DURATION_DENOM = int64(MIN_LOG_AUTO_RUN_LOOP_DURATION_PC * 100.0)
-
-	// Magic number to improve accuracy for sleep time at the end of each auto run iteration
-	AUTO_RUN_LOOP_WAIT_OFFSET_NS int64 = 50869
 )
 
 func ScheduleAutoTriggeredPipelines(pls []Pipeline) {
@@ -143,30 +137,7 @@ func ScheduleAutoTriggeredPipelines(pls []Pipeline) {
 				}
 			}
 
-			// HACK: For microsecond accuracy time.Sleep() is woefully slow on linux, syscall.Nanosleep is better but still
-			// 		 requires an `AUTO_RUN_LOOP_WAIT_OFFSET` I derived from a trial and error process.
-			//
-			// 		 With this setup a 250us loop interval is += 2.5% of the target finish time ~99% of the time which I
-			// 		 think is acceptable. Accuracy improves for longer intervals and likely gets worse for shorter intervals.
-			//
-			//		 Weirdly the absolute difference between the "expected" finish and "actual" finish does increase for much
-			//		 longer intervals like 75ms, but as a percentage of the overall autoRunLoopFrequency it's much improved.
-			// 		 This might be related to some sort of caching that occurs for `Nanosleep`s that occur within microseconds
-			//		 of one another on linux?
-			//
-			//		 In practice the interval mightn't be in the microseconds anyway, since it's dynamically retrieved from
-			// 	     `getAutoRunLoopFrequency` and is relative to the smallest interval defined on a pipeline.
-			var (
-				totalSleep       = time.Until(befAutoRunLoop.Add((autoRunLoopFrequency * time.Duration(counter+1)) - time.Duration(AUTO_RUN_LOOP_WAIT_OFFSET_NS))).Nanoseconds()
-				totalSleepNSPart = totalSleep % BILLION
-				totalSleepSPart  = ((totalSleep - totalSleepNSPart) / BILLION)
-				ts               = &syscall.Timespec{Nsec: totalSleepNSPart, Sec: totalSleepSPart}
-				err              = syscall.Nanosleep(ts, nil)
-			)
-			if err != nil {
-				// Can return "interrupted system call" error, retry once always on error
-				syscall.Nanosleep(ts, nil)
-			}
+			utility.SleepLinuxUntilIteration(befAutoRunLoop, counter+1, autoRunLoopFrequency)
 		}
 		counterResets++
 	}

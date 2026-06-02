@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -20,8 +19,7 @@ type wsPipelinesUpdate struct {
 
 var (
 	APPROX_EIGTH_OF_AUTO_RUN_LOOP_FREQUENCY = (2500 * time.Microsecond) // 2.5ms
-	WS_SLEEP_NS                             = math.Max(float64(APPROX_EIGTH_OF_AUTO_RUN_LOOP_FREQUENCY), float64(pipelines.AUTO_RUN_LOOP_WAIT_OFFSET_NS))
-	ts                                      = &syscall.Timespec{Nsec: (int64(WS_SLEEP_NS) - pipelines.AUTO_RUN_LOOP_WAIT_OFFSET_NS)}
+	WS_SLEEP_NS                             = math.Max(float64(APPROX_EIGTH_OF_AUTO_RUN_LOOP_FREQUENCY), float64(utility.MIN_SLEEP_ACCURACY))
 )
 
 func OpenClientWS(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +32,11 @@ func OpenClientWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lastPipelinesUpdateBytes := []byte{}
+	var (
+		start                          = time.Now()
+		counter                  int64 = 1
+		lastPipelinesUpdateBytes       = []byte{}
+	)
 	for {
 		// Read message from browser
 		// msgType, msg, err := conn.ReadMessage()
@@ -64,11 +66,8 @@ func OpenClientWS(w http.ResponseWriter, r *http.Request) {
 
 		lastPipelinesUpdateBytes = maybeNewPipelinesUpdateBytes
 
-		err = syscall.Nanosleep(ts, nil)
-		if err != nil {
-			// Can return "interrupted system call" error, retry once always on error
-			syscall.Nanosleep(ts, nil)
-		}
+		utility.SleepLinuxUntilIteration(start, counter, time.Duration(WS_SLEEP_NS))
+		counter++
 
 		// Pipline: NOT RUNNING, RUNNING, ERROR
 		// Stage: NOT RUNNING, RUNNING, ERROR
