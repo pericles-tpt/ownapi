@@ -11,8 +11,9 @@ if [ ! -d "./node_modules" ]; then
 fi
 npx webpack
 
-# Build frontend Go code
-GOOS=linux GOARCH=amd64 go build -trimpath -o ./build/
+# WARNING: Any flags that modify the output binary here MUST
+#          also be added to the plugin build step in the code
+GOOS=linux GOARCH=amd64 go build -o ./build/
 
 # Copy required files to `build/` directory
 mkdir -p build/_config
