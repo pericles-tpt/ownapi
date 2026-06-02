@@ -15,12 +15,12 @@ var (
 	arrayTypeWhitelist = []string{}
 )
 
-func RegenerateUserCodeAsSharedObjectGo(components FileComponents, outPath string) error {
+func RegenerateUserCodeAsSharedObjectGo(components FileComponents, outPaths []string) error {
 	err := validateComponents(components)
 	if err != nil {
 		return err
 	}
-	err = generateFiles(components, outPath)
+	err = generateFiles(components, outPaths)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func validateComponents(components FileComponents) error {
 	return nil
 }
 
-func generateFiles(components FileComponents, outPath string) error {
+func generateFiles(components FileComponents, outPaths []string) error {
 	sb := strings.Builder{}
 
 	sb.WriteString("package main\n")
@@ -152,9 +152,19 @@ func generateFiles(components FileComponents, outPath string) error {
 		sb.WriteString(fs)
 	}
 
-	err := os.WriteFile(outPath, []byte(sb.String()), 0666)
-	if err != nil {
-		return err
+	var (
+		failedWritePaths = make([]string, 0, len(outPaths))
+		failedWriteErrs  = make([]string, 0, len(outPaths))
+	)
+	for _, p := range outPaths {
+		err := os.WriteFile(p, []byte(sb.String()), 0666)
+		if err != nil {
+			failedWritePaths = append(failedWritePaths, p)
+			failedWriteErrs = append(failedWriteErrs, err.Error())
+		}
+	}
+	if len(failedWritePaths) > 0 {
+		return fmt.Errorf("failed to write to %d/%d files: %v, with the following errors: %v", len(failedWritePaths), len(outPaths), failedWritePaths, failedWriteErrs)
 	}
 
 	return nil

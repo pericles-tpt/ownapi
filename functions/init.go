@@ -6,18 +6,21 @@ import (
 	"os"
 	"os/exec"
 	"plugin"
+	"runtime/debug"
 	"strings"
 
 	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
 )
 
-const customFunctionsPath = "./user_functions"
+const (
+	customFunctionsPath = "./user_functions"
+)
 
 var (
-	generatedGoDir  = fmt.Sprintf("%s/generated", customFunctionsPath)
-	generatedGoPath = fmt.Sprintf("%s/main.go", generatedGoDir)
-	generatedSOPath = fmt.Sprintf("%s/main.so", generatedGoDir)
+	generatedGoDir              = fmt.Sprintf("%s/generated", customFunctionsPath)
+	generatedGoFileForReference = fmt.Sprintf("%s/main.go", generatedGoDir)
+	generatedSOPath             = fmt.Sprintf("%s/main.so", generatedGoDir)
 
 	pl *plugin.Plugin
 
@@ -38,6 +41,21 @@ func Init() error {
 }
 
 func Reload() error {
+	tmpDirForGo, err := os.MkdirTemp("", "ownapi-*")
+	if err != nil {
+		return errors.Wrap(err, "failed to create temp dir for go tooling")
+	}
+	tmpGoRoot := fmt.Sprintf("%s/go", tmpDirForGo)
+	err = os.Mkdir(tmpGoRoot, 0700)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create go/ dir in temp path: %s", tmpDirForGo)
+	}
+	defer os.RemoveAll(tmpGoRoot)
+	err = validateUnpackGoTar(tmpGoRoot)
+	if err != nil {
+		return errors.Wrap(err, "failed to check go binary")
+	}
+
 	dirents, err := os.ReadDir(customFunctionsPath)
 	if err != nil {
 		return errors.Wrapf(err, "failed to read `%s`", customFunctionsPath)
@@ -117,14 +135,27 @@ func Reload() error {
 			SigReturnTypes: pf.SigReturnTypes,
 		})
 	}
-	err = RegenerateUserCodeAsSharedObjectGo(combinedComponents, generatedGoPath)
+
+	generatedGoDir := fmt.Sprintf("%s/src/example.com/custom", tmpGoRoot)
+	err = os.MkdirAll(generatedGoDir, 0700)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create dir for generated go code at: %s", generatedGoDir)
+	}
+	generatedGoFile := fmt.Sprintf("%s/main.go", generatedGoDir)
+
+	err = RegenerateUserCodeAsSharedObjectGo(combinedComponents, []string{generatedGoFile, generatedGoFileForReference})
 	if err != nil {
 		return errors.Wrap(err, "failed to generate output go from provided custom_functions")
 	}
 
 	// TODO: Make sure compilation here matches the main binary, otherwise could have problems
 	// SOURCE: https://pkg.go.dev/plugin#hdr-Warnings
-	cmd := exec.Command("go", "build", "-trimpath", "-buildmode=plugin", "-o", generatedSOPath, generatedGoPath)
+	goBinPath := fmt.Sprintf("%s/bin/go", tmpGoRoot)
+	flagsToUnset := setBuildEnvVars()
+	for _, f := range flagsToUnset {
+		defer os.Unsetenv(f)
+	}
+	cmd := exec.Command(goBinPath, "build", "-buildmode=plugin", "-o", generatedSOPath, generatedGoFile)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return errors.Wrapf(err, "failed to build plugin, out: %s", out)
@@ -161,4 +192,16 @@ func Reload() error {
 	}
 
 	return nil
+}
+
+func setBuildEnvVars() []string {
+	bi, _ := debug.ReadBuildInfo()
+	envs := make([]string, 0, len(bi.Settings))
+	for _, s := range bi.Settings {
+		if strings.HasPrefix(s.Key, "GO") || strings.HasPrefix(s.Key, "CGO") {
+			os.Setenv(s.Key, s.Value)
+			envs = append(envs, s.Key)
+		}
+	}
+	return envs
 }
