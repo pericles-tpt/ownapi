@@ -345,7 +345,7 @@ func loadToLKKS(file string, pw []byte) ([]string, error) {
 
 		keys = append(keys, k)
 
-		err = addKeyToLKKS(k, v)
+		err = AddKeyToLKKS(k, v)
 		if err != nil {
 			return keys, errors.Wrapf(err, "failed to store key '%s' in LKKS", k)
 		}
@@ -401,7 +401,7 @@ func consumeNextSecret(bs []byte, startIdx int) (string, []byte, int, error) {
 	return string(keyParts), value, i + 1, nil
 }
 
-func addKeyToLKKS(k string, v []byte) error {
+func AddKeyToLKKS(k string, v []byte) error {
 	keyId, err := unix.AddKey(keyringTypeString, k, v, keyringId)
 	if err != nil {
 		return errors.Wrapf(err, "failed to save secret with key: '%s', to keyring", k)
