@@ -17,7 +17,6 @@ const (
 )
 
 const (
-	LOG_FSIZE_LIMIT   = 1_000_000
 	FNAME_TIME_FORMAT = "20060102150405"
 )
 

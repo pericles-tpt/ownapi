@@ -12,19 +12,16 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/pericles-tpt/ownapi/config"
 	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
-const (
-	SECRET_NAME_SIZE_LIMIT = 50
-	SECRETS_PREFIX         = "secret:"
-)
-
 var (
-	separator       = rune(':')
+	secrets_prefix  string
+	separator       rune
 	keyringId       int
 	keynameToIdSize = map[string]struct {
 		Id   int
@@ -37,6 +34,9 @@ var (
 )
 
 func Init(secretsFile string, pipelinesBytes []byte) error {
+	secrets_prefix = fmt.Sprintf("%s%s", config.GetSecretsPrefix(), config.GetPrefixesSeparator())
+	separator = rune(config.GetPrefixesSeparator()[0])
+
 	pw, err := setupSecretsOrPromptPassword(secretsFile)
 	if err != nil {
 		return err
@@ -137,7 +137,7 @@ func GetSecretsOffsetsLens(contents string) ([]string, []int, []int) {
 		secretsPrefixIdx int
 
 		collectSecretName bool
-		secretName        = make([]rune, 0, SECRET_NAME_SIZE_LIMIT)
+		secretName        = make([]rune, 0, 50)
 
 		pipelineSecretNames   = make([]string, 0, 50)
 		pipelineSecretOffsets = make([]int, 0, 50)
@@ -154,8 +154,8 @@ func GetSecretsOffsetsLens(contents string) ([]string, []int, []int) {
 				secretName = make([]rune, 0, 50)
 				collectSecretName = false
 			}
-		} else if c == rune(SECRETS_PREFIX[secretsPrefixIdx]) {
-			if secretsPrefixIdx == len(SECRETS_PREFIX)-1 {
+		} else if c == rune(secrets_prefix[secretsPrefixIdx]) {
+			if secretsPrefixIdx == len(secrets_prefix)-1 {
 				collectSecretName = true
 				secretsPrefixIdx = -1
 				pipelineSecretOffsets = append(pipelineSecretOffsets, i)
@@ -193,7 +193,7 @@ func MaybeReplaceSecretsInString(target string) (bool, string, error) {
 		}(replaceSecretBytes)
 
 		for _, sn := range maybeSecretNames {
-			fullSecretName := fmt.Sprintf("%s%s", SECRETS_PREFIX, sn)
+			fullSecretName := fmt.Sprintf("%s%s", secrets_prefix, sn)
 			partsAroundSecret := strings.Split(target, fullSecretName)
 
 			newStringParts = append(newStringParts, partsAroundSecret[0])

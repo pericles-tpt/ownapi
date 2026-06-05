@@ -18,10 +18,11 @@ import (
 
 const (
 	goBinHTTPSourcePrefix = "https://go.dev/dl"
-	tmpTarDst             = "./_data/go.tar.gz"
 )
 
 var (
+	tmpTarDst string
+
 	expTarHash  string
 	untarFilter = []string{"bin", "pkg", "src", "go.env"}
 )

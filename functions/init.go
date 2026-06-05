@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pericles-tpt/ownapi/config"
 	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
 )
 
 var (
-	customFunctionsPath string
-
+	customFunctionsPath         string
 	generatedGoDir              string
 	generatedGoFileForReference string
 	generatedSOPath             string
@@ -42,11 +42,9 @@ func Init() error {
 		arrayTypeWhitelist = append(arrayTypeWhitelist, fmt.Sprintf("[]%s", t))
 	}
 
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	customFunctionsPath = fmt.Sprintf("%s/user_functions", wd)
+	tmpTarDst = config.GetDataDir("go.tar.gz")
+
+	customFunctionsPath = config.GetDataDir("user_functions")
 	generatedGoDir = fmt.Sprintf("%s/generated", customFunctionsPath)
 	generatedGoFileForReference = fmt.Sprintf("%s/main.go", generatedGoDir)
 	generatedSOPath = fmt.Sprintf("%s/main.so", generatedGoDir)

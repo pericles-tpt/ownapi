@@ -1,0 +1,6 @@
+{
+    "webSocketSleepUS": 2500,
+    "log": {
+        "fileSizeLimit": 1000000
+    }
+}

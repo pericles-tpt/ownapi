@@ -5,14 +5,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pericles-tpt/ownapi/config"
 	"github.com/pkg/errors"
 )
 
 var (
 	// e.g. _data/input/http
-	dataRoot = "_data"
-	stages   = []string{"output"}
-	nodeMap  = map[string][]string{
+	stages  = []string{"output"}
+	nodeMap = map[string][]string{
 		"http":   {},
 		"json":   {},
 		"usb":    {"copy"},
@@ -21,6 +21,8 @@ var (
 )
 
 func MakeDirectories() error {
+	dataRoot := config.GetDataDir("_data")
+
 	// Make 'files' directory
 	path := fmt.Sprintf("%s/files", dataRoot)
 	err := os.Mkdir(path, 0760)
@@ -51,6 +53,8 @@ func MakeDirectories() error {
 }
 
 func GetDirectoryPath(targetLeafNodePath [2]string) (string, bool, error) {
+	dataRoot := config.GetDataDir("_data")
+
 	var (
 		hasChildren bool
 		currIdx     int

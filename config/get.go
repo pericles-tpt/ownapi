@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strings"
 )
@@ -17,27 +18,27 @@ func GetIsDev() bool {
 }
 
 func GetAppName() string {
-	return cfg.AppName
+	return cfgS.AppName
 }
 
 func GetLocalFrontendURL() string {
-	return cfg.LocalFrontendURL
+	return cfgS.LocalFrontendURL
 }
 func GetFrontendURL() string {
-	return cfg.FrontendURL
+	return cfgS.FrontendURL
 }
 func GetStaticFrontendURL() string {
 	if GetIsDev() {
-		return cfg.LocalFrontendURL
+		return cfgS.LocalFrontendURL
 	}
-	return cfg.FrontendURL
+	return cfgS.FrontendURL
 
 }
 func GetLocalBackendURL() string {
-	return cfg.LocalBackendURL
+	return cfgS.LocalBackendURL
 }
 func GetBackendURL() string {
-	return cfg.BackendURL
+	return cfgS.BackendURL
 }
 func GetURLPort(url string) string {
 	urlParts := strings.Split(url, ":")
@@ -45,5 +46,27 @@ func GetURLPort(url string) string {
 }
 
 func GetCorsOptions() CorsOptions {
-	return cfg.CorsOptions
+	return cfgS.CorsOptions
+}
+
+func GetDynamicConfigReloadMS() int64 {
+	return cfgS.DynamicConfigReloadMS
+}
+
+func GetPrefixesSeparator() string {
+	return cfgS.PrefixSeparator
+}
+func GetSecretsPrefix() string {
+	return cfgS.Prefixes.Secret
+}
+func GetDataDir(path string) string {
+	return fmt.Sprintf("%s/%s", strings.TrimSuffix(cfgS.DataRootDir, "/"), strings.TrimPrefix(path, "/"))
+}
+
+// DYNAMIC
+func GetWebsocketSleepUS() int64 {
+	return cfgD.WebsocketSleepUS
+}
+func GetLogFilesizeLimit() int64 {
+	return cfgD.Log.FileSizeLimit
 }

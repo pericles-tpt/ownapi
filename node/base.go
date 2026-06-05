@@ -5,9 +5,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pericles-tpt/ownapi/config"
 	"github.com/pericles-tpt/ownapi/setup"
 	"github.com/pkg/errors"
 )
+
+var SECRETS_PREFIX string
 
 type BaseNode interface {
 	Trigger(propMap map[string]any, useCache bool) (map[string]any, error)
@@ -73,6 +76,8 @@ func Init() error {
 		return errors.Wrap(err, "failed to init `customResponseCacheOutputPath`")
 	}
 
+	SECRETS_PREFIX = config.GetSecretsPrefix()
+
 	return nil
 }
 
@@ -87,7 +92,7 @@ func UpdateKeys(propMap map[string]any, pipelineStageCount int) (map[string]any,
 	newPropMap := make(map[string]any, len(propMap))
 
 	for k, v := range propMap {
-		keyParts := strings.Split(k, ":")
+		keyParts := strings.Split(k, SECRETS_PREFIX)
 		isOutput := keyParts[0] == "output"
 
 		switch len(keyParts) {

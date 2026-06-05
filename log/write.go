@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pericles-tpt/ownapi/config"
 	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
 )
@@ -145,7 +146,7 @@ func getLogPathToWrite(t LogType, label string, rowsSize int) (string, bool, err
 			return filename, new, errors.Errorf("failed to state existing found log file: %s", newestFileDirent.Name())
 		}
 
-		if (fs.Size() + int64(rowsSize)) > LOG_FSIZE_LIMIT {
+		if (fs.Size() + int64(rowsSize)) > config.GetLogFilesizeLimit() {
 			new = true
 		}
 	}

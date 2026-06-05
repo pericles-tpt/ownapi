@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pericles-tpt/ownapi/config"
 	"github.com/pericles-tpt/ownapi/pipelines"
 	"github.com/pericles-tpt/ownapi/utility"
 )
@@ -16,11 +17,6 @@ type wsPipelinesUpdate struct {
 	Pipelines        []pipelines.Pipeline         `json:"pipelines"`
 	PipelineStatuses []pipelines.PipelineProgress `json:"pipelineStatuses"`
 }
-
-var (
-	APPROX_EIGTH_OF_AUTO_RUN_LOOP_FREQUENCY = (2500 * time.Microsecond) // 2.5ms
-	WS_SLEEP_NS                             = math.Max(float64(APPROX_EIGTH_OF_AUTO_RUN_LOOP_FREQUENCY), float64(utility.MIN_SLEEP_ACCURACY))
-)
 
 func OpenClientWS(w http.ResponseWriter, r *http.Request) {
 	// TODO: Communication is one-way so far, Server Sent Events (SSE) is better for this: https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
@@ -66,11 +62,16 @@ func OpenClientWS(w http.ResponseWriter, r *http.Request) {
 
 		lastPipelinesUpdateBytes = maybeNewPipelinesUpdateBytes
 
-		utility.SleepLinuxUntilIteration(start, counter, time.Duration(WS_SLEEP_NS))
+		utility.SleepLinuxUntilIteration(start, counter, time.Duration(getConfigAutoRunLoopFrequency()))
 		counter++
 
 		// Pipline: NOT RUNNING, RUNNING, ERROR
 		// Stage: NOT RUNNING, RUNNING, ERROR
 		// Node: NOT RUNNING, RUNNING, ERROR
 	}
+}
+
+func getConfigAutoRunLoopFrequency() int64 {
+	configAutoRunLoopFrequency := (time.Duration(config.GetWebsocketSleepUS()) * time.Microsecond).Nanoseconds()
+	return int64(math.Max(float64(configAutoRunLoopFrequency), float64(utility.MIN_SLEEP_ACCURACY)))
 }
