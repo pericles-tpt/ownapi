@@ -53,11 +53,10 @@ func AutoReloadDynamicConfig(dynamicConfigPath string) {
 			continue
 		}
 
-		if st.ModTime().After(lastConfigModtime) {
-			lastConfigModtime = st.ModTime()
-		} else {
+		if st.ModTime().Equal(lastConfigModtime) {
 			continue
 		}
+		lastConfigModtime = st.ModTime()
 
 		file, err := os.OpenFile(dynamicConfigPath, os.O_RDONLY, 0200)
 		if err != nil {
