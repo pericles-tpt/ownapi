@@ -19,6 +19,7 @@ type FileComponents struct {
 
 type FuncComponent struct {
 	FuncComponentSignature
+	Comment          string
 	Body             string
 	BodyReturnValues []string
 }
@@ -54,39 +55,37 @@ func DumbLexer(contents []byte) (FileComponents, error) {
 	var (
 		ri           rune
 		buf          = make([]rune, 0, 50)
+		commentBuf   = make([]rune, 0, 100)
 		newlineCount int
 
 		singleLineComment, multiLineComment bool
+		resetOnNextComment                  bool
 		skipWord                            bool
 	)
 	for i := 0; i < len(runes); i++ {
 		var isNewline bool
 		ri, isNewline = getRuneMaybeIncrementNewlineCount(runes, i, &newlineCount)
-		if !unicode.IsSpace(ri) {
-			buf = append(buf, ri)
-			multilineEnd := multiLineComment && (ri == rune('*') && (i+1) < len(runes) && runes[i+1] == rune('/'))
-			if multiLineComment && multilineEnd {
-				multiLineComment = false
-				buf = buf[:0]
-				// Don't need `manualIncrement`, know next rune is '/'
-				i++
+		if singleLineComment || multiLineComment {
+			commentBuf = append(commentBuf, ri)
+			if isNewline {
+				if multiLineComment {
+					multiLineComment = (i-2 < 0 || (runes[i-2] != rune('*') || runes[i-1] != rune('/')))
+				}
+				nextLineIsComment := i+2 < len(runes) && (multiLineComment || string(runes[i+1:i+3]) == "//" || string(runes[i+1:i+3]) == "/*")
+				resetOnNextComment = !nextLineIsComment
+				singleLineComment = false
 			}
+		} else if !unicode.IsSpace(ri) {
+			buf = append(buf, ri)
 			continue
 		}
 
-		if isNewline {
-			if singleLineComment {
-				buf = buf[:0]
-			}
-			singleLineComment = false
-		}
 		if skipWord {
 			buf = buf[:0]
 			skipWord = false
 			continue
 		}
 
-		// handle word
 		var (
 			word = string(buf)
 			nlc  int
@@ -94,8 +93,18 @@ func DumbLexer(contents []byte) (FileComponents, error) {
 
 		switch word {
 		case "//":
+			if resetOnNextComment {
+				commentBuf = commentBuf[:0]
+				resetOnNextComment = false
+			}
+			commentBuf = append(commentBuf, []rune{'/', '/', ri}...)
 			singleLineComment = true
 		case "/*":
+			if resetOnNextComment {
+				commentBuf = commentBuf[:0]
+				resetOnNextComment = false
+			}
+			commentBuf = append(commentBuf, []rune{'/', '*', ri}...)
 			multiLineComment = true
 		case "package":
 			skipWord = true
@@ -123,7 +132,7 @@ func DumbLexer(contents []byte) (FileComponents, error) {
 				isPublic bool
 			)
 
-			i, nlc, key, val, isPublic, err = extractFunc(i, runes)
+			i, nlc, key, val, isPublic, err = extractFunc(i, runes, commentBuf)
 			if err != nil {
 				return ret, errors.Wrapf(err, "failed to extract func with name '%s'", key)
 			}
@@ -252,7 +261,7 @@ func extractImports(i int, runes []rune) (int, int, []string) {
 	return j - 1, nlc, imports
 }
 
-func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool, error) {
+func extractFunc(i int, runes []rune, commentBuf []rune) (int, int, string, FuncComponent, bool, error) {
 	var (
 		j        = i
 		nlc      int
@@ -264,6 +273,10 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool, er
 			BodyReturnValues: make([]string, 0, 5),
 		}
 	)
+
+	if len(commentBuf) > 0 {
+		val.Comment = string(commentBuf)
+	}
 
 	// Collect name
 	nameBuf := make([]rune, 0, 100)
@@ -300,10 +313,7 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool, er
 	}
 
 	// Collect returns
-	var (
-		countCurvies    bool
-		foundFirstSpace bool
-	)
+	var countCurvies bool
 	for ; j < len(runes); j++ {
 		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
 		if !unicode.IsSpace(rj) {
@@ -318,7 +328,6 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool, er
 	var returnsBuf = make([]rune, 0, 100)
 	for ; j < len(runes) && ((countCurvies && curvies != 0) || !countCurvies); j++ {
 		rj, _ = getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
-		foundFirstSpace = foundFirstSpace || unicode.IsSpace(rj)
 		if !unicode.IsSpace(rj) {
 			if countCurvies {
 				if rj == rune('(') {
@@ -326,7 +335,7 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool, er
 				} else if rj == rune(')') {
 					curvies--
 				}
-			} else if foundFirstSpace && rj == rune('{') {
+			} else if rj == rune('{') {
 				break
 			}
 		}
@@ -336,6 +345,7 @@ func extractFunc(i int, runes []rune) (int, int, string, FuncComponent, bool, er
 		returnsBuf = removeBrackets(returnsBuf, nil)
 	}
 	types = getArgTypes(returnsBuf)
+
 	val.SigReturnTypes = make([]string, len(types))
 	copy(val.SigReturnTypes, types)
 

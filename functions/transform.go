@@ -229,7 +229,7 @@ func generateFunction(name string, f FuncComponent, isPublic bool) (string, erro
 		bodyString = strings.Replace(bodyString, getReturnPlaceholder(i), reformatted, 1)
 	}
 
-	return fmt.Sprintf("%s\n%s\n%s\n%s\n}\n", signature, vars, strings.Join(assertions, "\n"), bodyString), nil
+	return fmt.Sprintf("%s%s\n%s\n%s\n%s\n}\n", f.Comment, signature, vars, strings.Join(assertions, "\n"), bodyString), nil
 }
 
 func getArgNameTypes(val []rune) ([]string, []string, error) {
