@@ -8,19 +8,23 @@ import (
 	"plugin"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
 )
 
-const (
-	customFunctionsPath = "./user_functions"
+var (
+	customFunctionsPath string
+
+	generatedGoDir              string
+	generatedGoFileForReference string
+	generatedSOPath             string
 )
 
 var (
-	generatedGoDir              = fmt.Sprintf("%s/generated", customFunctionsPath)
-	generatedGoFileForReference = fmt.Sprintf("%s/main.go", generatedGoDir)
-	generatedSOPath             = fmt.Sprintf("%s/main.so", generatedGoDir)
+	tarValidateRetries = 3
+	tarRetryDelay      = time.Second * 3
 
 	pl *plugin.Plugin
 
@@ -37,28 +41,61 @@ func Init() error {
 	for _, t := range typeWhitelist {
 		arrayTypeWhitelist = append(arrayTypeWhitelist, fmt.Sprintf("[]%s", t))
 	}
-	return Reload()
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	customFunctionsPath = fmt.Sprintf("%s/user_functions", wd)
+	generatedGoDir = fmt.Sprintf("%s/generated", customFunctionsPath)
+	generatedGoFileForReference = fmt.Sprintf("%s/main.go", generatedGoDir)
+	generatedSOPath = fmt.Sprintf("%s/main.so", generatedGoDir)
+
+	reload(true)
+	return nil
 }
 
-func Reload() error {
-	tmpDirForGo, err := os.MkdirTemp("", "ownapi-*")
-	if err != nil {
-		return errors.Wrap(err, "failed to create temp dir for go tooling")
+func reload(initialLoad bool) bool {
+	var (
+		err error
+
+		i         int
+		tmpGoRoot string
+	)
+	for i = 0; i < tarValidateRetries; i++ {
+		var tmpDirForGo string
+		tmpDirForGo, err = os.MkdirTemp("", "ownapi-*")
+		if err != nil {
+			err = errors.Wrap(err, "failed to create temp dir for go tooling")
+			return false
+		}
+		tmpGoRoot = fmt.Sprintf("%s/go", tmpDirForGo)
+		err = os.Mkdir(tmpGoRoot, 0700)
+		if err != nil {
+			err = errors.Wrapf(err, "failed to create go/ dir in temp path: %s", tmpDirForGo)
+			return false
+		}
+		defer os.RemoveAll(tmpGoRoot)
+
+		err = validateUnpackGoTar(tmpGoRoot)
+		if err == nil {
+			break
+		}
+
+		fmt.Printf("WARN: failed to validate/unpack go tar, err: %v\n", err)
+		fmt.Printf("Sleeping for %v...\n", tarRetryDelay)
+
+		utility.SleepLinux(tarRetryDelay)
 	}
-	tmpGoRoot := fmt.Sprintf("%s/go", tmpDirForGo)
-	err = os.Mkdir(tmpGoRoot, 0700)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create go/ dir in temp path: %s", tmpDirForGo)
-	}
-	defer os.RemoveAll(tmpGoRoot)
-	err = validateUnpackGoTar(tmpGoRoot)
-	if err != nil {
-		return errors.Wrap(err, "failed to check go binary")
+	if i == tarValidateRetries {
+		err = fmt.Errorf("failed to validate and unpack go tar after %d attempts", tarValidateRetries)
+		return false
 	}
 
-	dirents, err := os.ReadDir(customFunctionsPath)
+	var dirents []os.DirEntry
+	dirents, err = os.ReadDir(customFunctionsPath)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read `%s`", customFunctionsPath)
+		err = errors.Wrapf(err, "failed to read `%s`", customFunctionsPath)
 	}
 	var (
 		filePaths     = make([]string, 0, len(dirents))
@@ -74,13 +111,15 @@ func Reload() error {
 			var contents []byte
 			contents, err = os.ReadFile(filepath)
 			if err != nil {
-				return errors.Wrapf(err, "failed to read file '%s'", filename)
+				err = errors.Wrapf(err, "failed to read file '%s'", filepath)
+				return false
 			}
 
 			// Format with `gofmt`, simplifies parsing a lot
 			contents, err = format.Source(contents)
 			if err != nil {
-				return errors.Wrapf(err, "failed to format go file '%s', likely invalid", filename)
+				err = errors.Wrapf(err, "failed to format go file '%s', likely invalid", filepath)
+				return false
 			}
 
 			filesContents = append(filesContents, contents)
@@ -101,7 +140,8 @@ func Reload() error {
 		components = append(components, c)
 	}
 	if len(fileErrors) > 0 {
-		return fmt.Errorf("failed to lex/parse the following files: %s\n", strings.Join(fileErrors, "\n"))
+		err = fmt.Errorf("failed to lex/parse the following files: %s\n", strings.Join(fileErrors, "\n"))
+		return false
 	}
 
 	var numImports, numVars, numConsts, numPubFuncs, numPrivFuncs int
@@ -142,13 +182,40 @@ func Reload() error {
 	generatedGoDir := fmt.Sprintf("%s/src/example.com/custom", tmpGoRoot)
 	err = os.MkdirAll(generatedGoDir, 0700)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create dir for generated go code at: %s", generatedGoDir)
+		err = errors.Wrapf(err, "failed to create dir for generated go code at: %s", generatedGoDir)
+		return false
 	}
 	generatedGoFile := fmt.Sprintf("%s/main.go", generatedGoDir)
 
+	var (
+		tmpGeneratedGoFileForReference = fmt.Sprintf("%s.tmp", generatedGoFileForReference)
+		tmpGeneratedSOPath             = fmt.Sprintf("%s.tmp", generatedSOPath)
+
+		reloadPlugin bool
+	)
+	_, err = os.Stat(generatedGoFileForReference)
+	if err == nil {
+		err = os.Rename(generatedGoFileForReference, tmpGeneratedGoFileForReference)
+		if err != nil {
+			err = errors.Wrap(err, "failed to create backup of reference generated go file before regenerating code")
+			return false
+		}
+	}
+	_, err = os.Stat(generatedSOPath)
+	if err == nil {
+		err = os.Rename(generatedSOPath, tmpGeneratedSOPath)
+		if err != nil {
+			err = errors.Wrap(err, "failed to create backup of generated so file before regenerating code")
+			return false
+		}
+	}
+	defer tryRevertCodeGen(tmpGeneratedGoFileForReference, tmpGeneratedSOPath, functionSignatures, functionNames, &err, &reloadPlugin)
+	reloadPlugin = initialLoad
+
 	err = RegenerateUserCodeAsSharedObjectGo(combinedComponents, filePaths, []string{generatedGoFile, generatedGoFileForReference})
 	if err != nil {
-		return errors.Wrap(err, "failed to generate output go from provided custom_functions")
+		err = errors.Wrap(err, "failed to generate output go from provided custom_functions")
+		return false
 	}
 
 	// TODO: Make sure compilation here matches the main binary, otherwise could have problems
@@ -159,15 +226,64 @@ func Reload() error {
 		defer os.Unsetenv(f)
 	}
 	cmd := exec.Command(goBinPath, "build", "-buildmode=plugin", "-o", generatedSOPath, generatedGoFile)
-	out, err := cmd.CombinedOutput()
+	var out []byte
+	out, err = cmd.CombinedOutput()
 	if err != nil {
-		return errors.Wrapf(err, "failed to build plugin, out: %s", out)
+		err = errors.Wrapf(err, "failed to build plugin, out: %s", out)
+		return false
 	}
 
-	pl, err = plugin.Open(generatedSOPath)
-	if err != nil {
-		return errors.Wrap(err, "failed to open generated plugin")
+	reloadPlugin, err = reloadPluginAndFuncProps(generatedSOPath, functionSignatures, functionNames)
+	return true
+}
+
+func tryRevertCodeGen(tmpGenGoPath, tmpSOPath string, functionSignatures []FuncComponentSignature, functionNames []string, err *error, reloadPlugin *bool) {
+	if err == nil || *err == nil {
+		os.Remove(tmpGenGoPath)
+		os.Remove(tmpSOPath)
+		return
 	}
+
+	recovered := make([]string, 0, 3)
+	if _, err1 := os.Stat(tmpGenGoPath); err1 == nil {
+		originalGenGoPath := strings.TrimSuffix(tmpGenGoPath, ".tmp")
+		err1 = os.Rename(tmpGenGoPath, originalGenGoPath)
+		recovered = append(recovered, "old generated go file")
+		if err1 != nil {
+			recovered = recovered[:len(recovered)-1]
+			fmt.Printf("WARN: failed to revert old generated go file after failed recompile, may exist at: %s\n", tmpGenGoPath)
+		}
+	}
+	if _, err1 := os.Stat(tmpSOPath); err1 == nil {
+		originalSOPath := strings.TrimSuffix(tmpSOPath, ".tmp")
+		err1 = os.Rename(tmpSOPath, originalSOPath)
+		recovered = append(recovered, "old so file")
+		if err1 != nil {
+			recovered = recovered[:len(recovered)-1]
+			fmt.Printf("WARN: failed to revert old plugin file after failed recompile, may exist at: %s\n", tmpSOPath)
+		} else if reloadPlugin != nil && *reloadPlugin {
+			recovered = append(recovered, "reloaded old plugin")
+			_, err1 = reloadPluginAndFuncProps(originalSOPath, functionSignatures, functionNames)
+			if err1 != nil {
+				recovered = recovered[:len(recovered)-1]
+				fmt.Printf("WARN: failed to open restored plugin after failed recompile, exists at: %s\n", originalSOPath)
+			}
+		}
+	}
+	fmt.Printf("ERROR: Error occurred in auto reload: %s\n", (*err).Error())
+	fmt.Printf("RECOVERED: %s\n", strings.Join(recovered, ", "))
+}
+
+func reloadPluginAndFuncProps(pluginPath string, functionSignatures []FuncComponentSignature, functionNames []string) (bool, error) {
+	var (
+		reloadPlugin bool
+		err          error
+	)
+	pl, err = plugin.Open(pluginPath)
+	if err != nil {
+		return reloadPlugin, errors.Wrapf(err, "failed to open generated plugin at path: %s", pluginPath)
+	}
+	reloadPlugin = true
 
 	// Populate local function properties
 	funcNames = make([]string, len(functionSignatures))
@@ -176,7 +292,7 @@ func Reload() error {
 		name := functionNames[i]
 		maybeFnc, err := pl.Lookup(name)
 		if err != nil {
-			return errors.Wrapf(err, "failed to find function in plugin with name '%s'", name)
+			return reloadPlugin, errors.Wrapf(err, "failed to find function in plugin with name '%s'", name)
 		}
 
 		var (
@@ -184,7 +300,7 @@ func Reload() error {
 			ok  bool
 		)
 		if fnc, ok = maybeFnc.(func([]any) ([]any, error)); !ok {
-			return fmt.Errorf("failed to assert function with name '%s', as expected type `func([]any) ([]any, error)`", name)
+			return reloadPlugin, fmt.Errorf("failed to assert function with name '%s', as expected type `func([]any) ([]any, error)`", name)
 		}
 
 		funcNames[i] = name
@@ -194,7 +310,7 @@ func Reload() error {
 		}
 	}
 
-	return nil
+	return false, nil
 }
 
 func setBuildEnvVars() []string {

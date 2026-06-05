@@ -64,10 +64,8 @@ func AutoRecompile() {
 		}
 		if recompile {
 			befCompile := time.Now()
-			err = Reload()
-			if err != nil {
-				fmt.Printf("ERROR: Error occurred in auto reload: %s\n", err.Error())
-			} else {
+			success := reload(false)
+			if success {
 				took := time.Since(befCompile)
 				fmt.Printf("SUCCESS: compiled in %v\n", took)
 			}
