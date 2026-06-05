@@ -61,16 +61,18 @@ func Reload() error {
 		return errors.Wrapf(err, "failed to read `%s`", customFunctionsPath)
 	}
 	var (
-		fileNames     = make([]string, 0, len(dirents))
+		filePaths     = make([]string, 0, len(dirents))
+		fileBasenames = make([]string, 0, len(dirents))
 		filesContents = make([][]byte, 0, len(dirents))
 	)
 	for _, de := range dirents {
 		var (
 			name     = de.Name()
-			filename = fmt.Sprintf("%s/%s", customFunctionsPath, name)
+			filepath = fmt.Sprintf("%s/%s", customFunctionsPath, name)
 		)
 		if de.Type().IsRegular() && strings.HasSuffix(name, ".go") && name != "main.go" {
-			contents, err := os.ReadFile(filename)
+			var contents []byte
+			contents, err = os.ReadFile(filepath)
 			if err != nil {
 				return errors.Wrapf(err, "failed to read file '%s'", filename)
 			}
@@ -82,7 +84,8 @@ func Reload() error {
 			}
 
 			filesContents = append(filesContents, contents)
-			fileNames = append(fileNames, name)
+			filePaths = append(filePaths, filepath)
+			fileBasenames = append(fileBasenames, name)
 		}
 	}
 
@@ -93,7 +96,7 @@ func Reload() error {
 	for i, fc := range filesContents {
 		c, err := DumbLexer(fc)
 		if err != nil {
-			fileErrors = append(fileErrors, fmt.Sprintf("\t%s: %s", fileNames[i], err.Error()))
+			fileErrors = append(fileErrors, fmt.Sprintf("\t%s: %s", fileBasenames[i], err.Error()))
 		}
 		components = append(components, c)
 	}
@@ -143,7 +146,7 @@ func Reload() error {
 	}
 	generatedGoFile := fmt.Sprintf("%s/main.go", generatedGoDir)
 
-	err = RegenerateUserCodeAsSharedObjectGo(combinedComponents, []string{generatedGoFile, generatedGoFileForReference})
+	err = RegenerateUserCodeAsSharedObjectGo(combinedComponents, filePaths, []string{generatedGoFile, generatedGoFileForReference})
 	if err != nil {
 		return errors.Wrap(err, "failed to generate output go from provided custom_functions")
 	}
