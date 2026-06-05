@@ -16,9 +16,6 @@ type CustomNodeConfig struct {
 
 	Name string `json:"name"`
 
-	InputTypes  []string `json:"input_types"`
-	OutputTypes []string `json:"output_types"`
-
 	InputKeys  []string `json:"input_keys"`
 	OutputKeys []string `json:"output_keys"`
 }
@@ -29,13 +26,6 @@ type CustomNode struct {
 
 func CreateCustomNode(propMap map[string]any, cfg CustomNodeConfig) (CustomNode, error) {
 	var ret CustomNode
-
-	if len(cfg.InputTypes) != len(cfg.InputKeys) {
-		return ret, fmt.Errorf("invalid len(cfg.InputTypes) != len(cfg.InputKeys), %d != %d", len(cfg.InputTypes), len(cfg.InputKeys))
-	}
-	if len(cfg.OutputTypes) != len(cfg.OutputKeys) {
-		return ret, fmt.Errorf("invalid len(cfg.OutputTypes) != len(cfg.OutputKeys), %d != %d", len(cfg.OutputTypes), len(cfg.OutputKeys))
-	}
 
 	err := utility.ErrOnAnyMatch([][]string{cfg.InputKeys, cfg.OutputKeys}, []string{"empty keys provided for InputKeys at indices", "empty keys provided for OutputKeys at indices"}, "")
 	if err != nil {
@@ -54,9 +44,13 @@ func CreateCustomNode(propMap map[string]any, cfg CustomNodeConfig) (CustomNode,
 		return ret, errors.Wrapf(err, "failed to retrieve func with name '%s'", cfg.Name)
 	}
 
-	err = utility.ErrOnAnyMismatch([][]string{cfg.InputTypes, cfg.OutputTypes}, [][]string{cf.SigParams.Types, cf.SigReturnTypes}, []string{"mismatched input types between cfg and found function", "mismatched output types between cfg and found function"})
-	if err != nil {
-		return ret, err
+	if len(cfg.InputKeys) != len(cf.SigParams.Names) {
+		return ret, fmt.Errorf("invalid num of input keys doesn't match num of function parameters, %d != %d", len(cfg.InputKeys), len(cfg.InputKeys))
+	}
+
+	numReturnTypesMinusError := len(cf.SigReturnTypes) - 1
+	if len(cfg.OutputKeys) != numReturnTypesMinusError {
+		return ret, fmt.Errorf("invalid num of outut keys doesn't match num of return types (excluding error), %d != %d", len(cfg.OutputKeys), numReturnTypesMinusError)
 	}
 
 	err = ret.regenerateHash()
