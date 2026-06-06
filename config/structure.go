@@ -1,6 +1,6 @@
 package config
 
-type ConfigStatic struct {
+type ConfigStartup struct {
 	AppName          string      `json:"appName"`
 	BackendURL       string      `json:"backendURL"`
 	LocalBackendURL  string      `json:"localBackendURL"`
@@ -8,7 +8,7 @@ type ConfigStatic struct {
 	LocalFrontendURL string      `json:"localFrontendURL"`
 	CorsOptions      CorsOptions `json:"corsOptions"`
 
-	DynamicConfigReloadMS int64 `json:"dynamicConfigReloadMS"`
+	RuntimeConfigReloadMS int64 `json:"runtimeConfigReloadMS"`
 
 	PrefixSeparator string `json:"prefixSeparator"`
 	Prefixes        struct {
@@ -17,7 +17,7 @@ type ConfigStatic struct {
 	DataRootDir string `json:"dataRootDir"`
 }
 
-type ConfigDynamic struct {
+type ConfigRuntime struct {
 	WebsocketSleepUS int64 `json:"webSocketSleepUS"`
 	Log              struct {
 		FileSizeLimit int64 `json:"fileSizeLimit"`

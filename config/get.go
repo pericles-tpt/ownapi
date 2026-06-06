@@ -49,8 +49,8 @@ func GetCorsOptions() CorsOptions {
 	return cfgS.CorsOptions
 }
 
-func GetDynamicConfigReloadMS() int64 {
-	return cfgS.DynamicConfigReloadMS
+func GetRuntimeConfigReloadMS() int64 {
+	return cfgS.RuntimeConfigReloadMS
 }
 
 func GetPrefixesSeparator() string {
@@ -63,10 +63,10 @@ func GetDataDir(path string) string {
 	return fmt.Sprintf("%s/%s", strings.TrimSuffix(cfgS.DataRootDir, "/"), strings.TrimPrefix(path, "/"))
 }
 
-// DYNAMIC
+// RUNTIME
 func GetWebsocketSleepUS() int64 {
-	return cfgD.WebsocketSleepUS
+	return cfgR.WebsocketSleepUS
 }
 func GetLogFilesizeLimit() int64 {
-	return cfgD.Log.FileSizeLimit
+	return cfgR.Log.FileSizeLimit
 }

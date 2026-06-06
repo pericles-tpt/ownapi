@@ -8,7 +8,7 @@
         "allowedMethods": ["GET", "PUT", "OPTIONS"],
         "allowedOrigins": []
     },
-    "dynamicConfigReloadMS": 250,
+    "runtimeConfigReloadMS": 250,
     "prefixSeparator": ":",
     "prefixes": {
         "secret": "secret"

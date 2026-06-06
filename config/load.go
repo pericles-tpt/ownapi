@@ -11,45 +11,45 @@ import (
 )
 
 var (
-	cfgS *ConfigStatic  = nil
-	cfgD *ConfigDynamic = nil
+	cfgS *ConfigStartup = nil
+	cfgR *ConfigRuntime = nil
 
 	lastConfigModtime = time.Time{}
 )
 
-func LoadConfigs(staticConfigPath, dynamicConfigPath string) error {
-	file, err := os.OpenFile(staticConfigPath, os.O_RDONLY, 0200)
+func LoadConfigs(startupConfigPath, runtimeConfigPath string) error {
+	file, err := os.OpenFile(startupConfigPath, os.O_RDONLY, 0200)
 	if err != nil {
-		return rterror.PrependErrorWithRuntimeInfo(err, "failed to open static config from '%s'", staticConfigPath)
+		return rterror.PrependErrorWithRuntimeInfo(err, "failed to open startup config from '%s'", startupConfigPath)
 	}
 
 	jd := json.NewDecoder(file)
 	err = jd.Decode(&cfgS)
 	if err != nil {
-		return rterror.PrependErrorWithRuntimeInfo(err, "failed to decode file into `ConfigStatic` structure")
+		return rterror.PrependErrorWithRuntimeInfo(err, "failed to decode file into `ConfigStartup` structure")
 	}
 
-	file, err = os.OpenFile(dynamicConfigPath, os.O_RDONLY, 0200)
+	file, err = os.OpenFile(runtimeConfigPath, os.O_RDONLY, 0200)
 	if err != nil {
-		return rterror.PrependErrorWithRuntimeInfo(err, "failed to open dynamic config from '%s'", dynamicConfigPath)
+		return rterror.PrependErrorWithRuntimeInfo(err, "failed to open runtime config from '%s'", runtimeConfigPath)
 	}
 
 	jd = json.NewDecoder(file)
-	err = jd.Decode(&cfgD)
+	err = jd.Decode(&cfgR)
 	if err != nil {
-		return rterror.PrependErrorWithRuntimeInfo(err, "failed to decode file into `ConfigDynamic` structure")
+		return rterror.PrependErrorWithRuntimeInfo(err, "failed to decode file into `ConfigRuntime` structure")
 	}
 
 	return err
 }
 
-func AutoReloadDynamicConfig(dynamicConfigPath string) {
+func AutoReloadRuntimeConfig(runtimeConfigPath string) {
 	for {
-		utility.SleepLinux(time.Duration((*cfgS).DynamicConfigReloadMS) * time.Millisecond)
+		utility.SleepLinux(time.Duration((*cfgS).RuntimeConfigReloadMS) * time.Millisecond)
 
-		st, err := os.Stat(dynamicConfigPath)
+		st, err := os.Stat(runtimeConfigPath)
 		if err != nil {
-			fmt.Printf("[CONFIG] Failed to access dynamic config at path '%s', please ensure it exists and has the correct permissions\n", dynamicConfigPath)
+			fmt.Printf("[CONFIG] Failed to access runtime config at path '%s', please ensure it exists and has the correct permissions\n", runtimeConfigPath)
 			continue
 		}
 
@@ -58,21 +58,21 @@ func AutoReloadDynamicConfig(dynamicConfigPath string) {
 		}
 		lastConfigModtime = st.ModTime()
 
-		file, err := os.OpenFile(dynamicConfigPath, os.O_RDONLY, 0200)
+		file, err := os.OpenFile(runtimeConfigPath, os.O_RDONLY, 0200)
 		if err != nil {
-			fmt.Printf("[CONFIG] Failed to load open dynamic config at path '%s', please check file permissions\n", dynamicConfigPath)
+			fmt.Printf("[CONFIG] Failed to load open runtime config at path '%s', please check file permissions\n", runtimeConfigPath)
 			continue
 		}
 
-		var tmpCfg *ConfigDynamic
+		var tmpCfg *ConfigRuntime
 		jd := json.NewDecoder(file)
 		err = jd.Decode(&tmpCfg)
 		if err != nil {
-			fmt.Printf("[CONFIG] Failed to decode config at path '%s', check that your config has the right structure\n", dynamicConfigPath)
+			fmt.Printf("[CONFIG] Failed to decode config at path '%s', check that your config has the right structure\n", runtimeConfigPath)
 			continue
 		}
 
-		cfgD = tmpCfg
-		fmt.Printf("[CONFIG] Successfully reloaded config from %s!\n", dynamicConfigPath)
+		cfgR = tmpCfg
+		fmt.Printf("[CONFIG] Successfully reloaded config from %s!\n", runtimeConfigPath)
 	}
 }
