@@ -23,6 +23,8 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/joomcode/errorx v1.1.1 // indirect
 	github.com/pericles-tpt/utilities v0.0.0-20240125234659-27257af8cfbf // indirect
+	go.mongodb.org/mongo-driver v1.17.9 // indirect
+	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 )

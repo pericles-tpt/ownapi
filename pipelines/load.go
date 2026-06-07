@@ -4,22 +4,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/pericles-tpt/ownapi/node"
 	"github.com/pkg/errors"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type Pipeline struct {
-	Name      string            `json:"name"`
-	Nodes     [][]node.BaseNode `json:"nodes"`
-	NodeTypes [][]node.NodeType `json:"nodeTypes"`
+	Name      string            `bson:"name" json:"name"`
+	Nodes     [][]node.BaseNode `bson:"nodes" json:"nodes"`
+	NodeTypes [][]node.NodeType `bson:"nodeTypes" json:"nodeTypes"`
 }
 
 type PipelineFile struct {
-	Name      string             `json:"name"`
-	Nodes     [][]map[string]any `json:"nodes"`
-	NodeTypes [][]node.NodeType  `json:"nodeTypes"`
+	Name      string             `bson:"name" json:"name"`
+	Nodes     [][]map[string]any `bson:"nodes" json:"nodes"`
+	NodeTypes [][]node.NodeType  `bson:"nodeTypes" json:"nodeTypes"`
+}
+
+type PipelineFileBSON struct {
+	Pipelines []PipelineFile `bson:"pipelines"`
 }
 
 var (
@@ -37,6 +43,14 @@ func Load(filename string) ([]byte, []Pipeline, error) {
 	err = json.Unmarshal(fbs, &tmpArr)
 	if err != nil {
 		return fbs, pipelines, err
+	}
+
+	// TODO: Ultimately should only read/write to BSON, just writing JSON -> BSON for now
+	// 		 until I've implemented methods for the application to modify the pipelines
+	// 		 (rather than manually modifying the JSON)
+	err = writeToBSON(filename, tmpArr)
+	if err != nil {
+		return fbs, pipelines, errors.Wrap(err, "failed to write JSON to BSON")
 	}
 
 	pipelines = make([]Pipeline, len(tmpArr))
@@ -197,4 +211,21 @@ func getBaseNode(maybeNode any, nodeType node.NodeType, reload bool) (node.BaseN
 		return &cn, nil
 	}
 	return ret, fmt.Errorf("failed to find node matching type: %v", nodeType)
+}
+
+func writeToBSON(filename string, pipelines []PipelineFile) error {
+	data := PipelineFileBSON{Pipelines: pipelines}
+	bs, err := bson.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	parts := strings.Split(filename, ".")
+	newFilename := fmt.Sprintf("%s.bson", strings.Join(parts[:len(parts)-1], "."))
+
+	err = os.WriteFile(newFilename, bs, 0666)
+	if err != nil {
+		return err
+	}
+	return nil
 }
