@@ -36,7 +36,7 @@ type Properties struct {
 
 const ILLEGAL_CHAR_GO = "🟦"
 
-var forbiddenKeywords = []string{"struct", "type"}
+var forbiddenKeywords = []string{"struct"}
 
 func DumbLexer(contents []byte) (FileComponents, error) {
 	var (
@@ -145,7 +145,7 @@ func DumbLexer(contents []byte) (FileComponents, error) {
 		// case "goto": // Not valid outside of functions, safe to ignore
 		// case "return": // As above
 		case "type":
-			return ret, fmt.Errorf("detected disallowed keyword: %s, please refactor to remove it", word)
+			// TODO: Implement `extractType`
 		default:
 			// Do nothing, for now
 		}
