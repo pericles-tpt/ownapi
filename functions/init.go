@@ -44,8 +44,8 @@ func Init() error {
 
 	tmpTarDst = config.GetDataDir("go.tar.gz")
 
-	customFunctionsPath = config.GetDataDir("user_functions")
-	generatedGoDir = fmt.Sprintf("%s/generated", customFunctionsPath)
+	customFunctionsPath = config.GetDataDir("user_functions/source")
+	generatedGoDir = fmt.Sprintf("%s/../generated", customFunctionsPath)
 	generatedGoFileForReference = fmt.Sprintf("%s/main.go", generatedGoDir)
 	generatedSOPath = fmt.Sprintf("%s/main.so", generatedGoDir)
 
@@ -60,6 +60,7 @@ func reload(initialLoad bool) bool {
 		i         int
 		tmpGoRoot string
 	)
+	defer maybePrintErr(&err)
 	for i = 0; i < tarValidateRetries; i++ {
 		var tmpDirForGo string
 		tmpDirForGo, err = os.MkdirTemp("", "ownapi-*")
@@ -90,40 +91,13 @@ func reload(initialLoad bool) bool {
 		return false
 	}
 
-	var dirents []os.DirEntry
-	dirents, err = os.ReadDir(customFunctionsPath)
-	if err != nil {
-		err = errors.Wrapf(err, "failed to read `%s`", customFunctionsPath)
-	}
 	var (
-		filePaths     = make([]string, 0, len(dirents))
-		fileBasenames = make([]string, 0, len(dirents))
-		filesContents = make([][]byte, 0, len(dirents))
+		filePaths, fileBasenames []string
+		filesContents            [][]byte
 	)
-	for _, de := range dirents {
-		var (
-			name     = de.Name()
-			filepath = fmt.Sprintf("%s/%s", customFunctionsPath, name)
-		)
-		if de.Type().IsRegular() && strings.HasSuffix(name, ".go") && name != "main.go" {
-			var contents []byte
-			contents, err = os.ReadFile(filepath)
-			if err != nil {
-				err = errors.Wrapf(err, "failed to read file '%s'", filepath)
-				return false
-			}
-
-			// Format with `gofmt`, simplifies parsing a lot
-			contents, err = format.Source(contents)
-			if err != nil {
-				err = errors.Wrapf(err, "failed to format go file '%s', likely invalid", filepath)
-				return false
-			}
-
-			filesContents = append(filesContents, contents)
-			filePaths = append(filePaths, filepath)
-			fileBasenames = append(fileBasenames, name)
-		}
+	filePaths, fileBasenames, filesContents, _, err = getFilesToCompile(customFunctionsPath, nil)
+	if err != nil {
+		return false
 	}
 
 	var (
@@ -235,6 +209,13 @@ func reload(initialLoad bool) bool {
 	return true
 }
 
+func maybePrintErr(err *error) {
+	if err == nil || *err == nil {
+		return
+	}
+	fmt.Printf("ERROR: Error occurred in auto reload: %s\n", (*err).Error())
+}
+
 func tryRevertCodeGen(tmpGenGoPath, tmpSOPath string, functionSignatures []FuncComponentSignature, functionNames []string, err *error, reloadPlugin *bool) {
 	if err == nil || *err == nil {
 		os.Remove(tmpGenGoPath)
@@ -268,7 +249,6 @@ func tryRevertCodeGen(tmpGenGoPath, tmpSOPath string, functionSignatures []FuncC
 			}
 		}
 	}
-	fmt.Printf("ERROR: Error occurred in auto reload: %s\n", (*err).Error())
 	fmt.Printf("RECOVERED: %s\n", strings.Join(recovered, ", "))
 }
 
@@ -321,4 +301,119 @@ func setBuildEnvVars() []string {
 		}
 	}
 	return envs
+}
+
+func getFilesToCompile(root string, basenameModMap *map[string]time.Time) ([]string, []string, [][]byte, *[]bool, error) {
+	var (
+		filePaths     = []string{}
+		fileBasenames = []string{}
+		filesContents = [][]byte{}
+		isNew         *[]bool
+	)
+	dirents, err := os.ReadDir(root)
+	if err != nil {
+		return filePaths, fileBasenames, filesContents, isNew, errors.Wrapf(err, "failed to read `%s`", root)
+	}
+	filePaths = make([]string, 0, len(dirents))
+	fileBasenames = make([]string, 0, len(dirents))
+	filesContents = make([][]byte, 0, len(dirents))
+	if basenameModMap != nil {
+		in := make([]bool, 0, len(dirents))
+		isNew = &in
+	}
+
+	var (
+		parents = []struct {
+			lastChild int
+			path      string
+		}{
+			{
+				lastChild: len(dirents) - 1,
+				path:      root,
+			},
+		}
+		currParentIdx = 0
+	)
+
+	for i := 0; i < len(dirents); i++ {
+		if i > parents[currParentIdx].lastChild {
+			currParentIdx++
+		}
+		currParentPath := parents[currParentIdx].path
+		currParentLastChild := parents[currParentIdx].lastChild
+
+		var (
+			de   = dirents[i]
+			name = de.Name()
+			path = fmt.Sprintf("%s/%s", currParentPath, name)
+		)
+		if de.IsDir() {
+			nestedDirents, err := os.ReadDir(path)
+			if err != nil {
+				return filePaths, fileBasenames, filesContents, isNew, errors.Wrapf(err, "failed to read dir in root `%s`", path)
+			}
+
+			// NOTE: Only support 1 level of file nesting from root, currently
+			nestedFiles := make([]os.DirEntry, 0, len(nestedDirents))
+			for _, de := range nestedDirents {
+				if de.Type().IsRegular() {
+					nestedFiles = append(nestedFiles, de)
+				}
+			}
+			dirents = append(dirents, nestedFiles...)
+
+			parents = append(parents, struct {
+				lastChild int
+				path      string
+			}{
+				lastChild: currParentLastChild + len(nestedDirents),
+				path:      path,
+			})
+			continue
+		}
+
+		if de.Type().IsRegular() && strings.HasSuffix(name, ".go") && name != "main.go" {
+			if basenameModMap != nil {
+				info, err := de.Info()
+				if err != nil {
+					fmt.Printf("WARN: Failed to read file: %s\n", name)
+					continue
+				}
+				currLastModified := info.ModTime()
+
+				(*isNew) = append((*isNew), false)
+				var (
+					prevLastModified time.Time
+					exists           bool
+				)
+				if prevLastModified, exists = (*basenameModMap)[name]; !exists {
+					(*isNew)[len(*isNew)-1] = true
+				}
+				isModified := prevLastModified != currLastModified
+				funcsModified[name] = currLastModified
+
+				if !isModified {
+					continue
+				}
+			}
+
+			var contents []byte
+			contents, err := os.ReadFile(path)
+			if err != nil {
+				return filePaths, fileBasenames, filesContents, isNew, errors.Wrapf(err, "failed to read file '%s'", path)
+			}
+
+			// Format with `gofmt`, simplifies parsing a lot
+			contents, err = format.Source(contents)
+			if err != nil {
+				return filePaths, fileBasenames, filesContents, isNew, errors.Wrapf(err, "failed to format go file '%s', likely invalid", path)
+			}
+
+			filesContents = append(filesContents, contents)
+			filePaths = append(filePaths, path)
+			fileBasenames = append(fileBasenames, name)
+		}
+	}
+
+	return filePaths, fileBasenames, filesContents, isNew, nil
 }

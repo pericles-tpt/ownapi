@@ -2,8 +2,6 @@ package functions
 
 import (
 	"fmt"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/pericles-tpt/ownapi/utility"
@@ -19,48 +17,29 @@ func AutoRecompile() {
 		counter int64 = 1
 	)
 	for {
-		dirents, err := os.ReadDir(customFunctionsPath)
+		_, fileBasenames, _, isNew, err := getFilesToCompile(customFunctionsPath, &funcsModified)
 		if err != nil {
-			fmt.Printf("ERROR: Failed to recompile, unable to read path: %s\n", customFunctionsPath)
+			fmt.Printf("ERROR: Failed to recompile, unable to get files from: %s, err: %v\n", customFunctionsPath, err)
 		}
 
-		// TODO: Handle delete case, a bit more complicated since deleted files could contain
-		// 		 functions in-use by a pipeline
 		var (
-			created  = make([]string, 0, len(dirents))
-			modified = make([]string, 0, len(dirents))
+			created  = make([]string, 0, len(fileBasenames))
+			modified = make([]string, 0, len(fileBasenames))
 		)
-		for _, de := range dirents {
-			var (
-				name             = de.Name()
-				prevLastModified time.Time
-				exists           bool
-			)
-			if de.Type().IsRegular() && strings.HasSuffix(name, ".go") && name != "main.go" {
-				info, err := de.Info()
-				if err != nil {
-					fmt.Printf("WARN: Failed to read file: %s\n", name)
-					continue
-				}
-				currLastModified := info.ModTime()
-
-				if prevLastModified, exists = funcsModified[name]; !exists {
-					created = append(created, name)
-				} else if prevLastModified != currLastModified {
-					modified = append(modified, name)
-				}
-				funcsModified[name] = currLastModified
+		for i, bn := range fileBasenames {
+			if (*isNew)[i] {
+				created = append(created, bn)
+			} else {
+				modified = append(modified, bn)
 			}
 		}
 
-		var recompile bool
+		recompile := len(fileBasenames) > 0
 		if len(modified) > 0 {
 			fmt.Printf("Files modified: %v, recompiling...\n", modified)
-			recompile = true
 		}
 		if len(created) > 0 {
 			fmt.Printf("Files added: %v, recompiling...\n", created)
-			recompile = true
 		}
 		if recompile {
 			befCompile := time.Now()
