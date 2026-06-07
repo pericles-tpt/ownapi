@@ -13,12 +13,12 @@ import (
 type JSONNodeConfig struct {
 	BaseNodeProps
 
-	InputKey     string             `json:"input_key"`
-	ExtractNodes []utility.JSONProp `json:"extract_nodes"`
+	InputKey     string             `bson:"input_key" json:"input_key"`
+	ExtractNodes []utility.JSONProp `bson:"extract_nodes" json:"extract_nodes"`
 }
 
 type JSONNode struct {
-	Config JSONNodeConfig `json:"config"`
+	Config JSONNodeConfig `bson:"config" json:"config"`
 }
 
 func CreateJSONNode(propMap map[string]any, cfg JSONNodeConfig) (JSONNode, error) {

@@ -18,14 +18,14 @@ var usbResponseCacheOutputPath string
 type USBCopyFromNodeConfig struct {
 	BaseNodeProps
 
-	SerialNo string      `json:"serial_no"`
-	Protocol USBProtocol `json:"protocol"`
-	Perms    uint8       `json:"perms"`
-	SrcPath  string      `json:"src_path"`
+	SerialNo string      `bson:"serial_no" json:"serial_no"`
+	Protocol USBProtocol `bson:"protocol" json:"protocol"`
+	Perms    uint8       `bson:"perms" json:"perms"`
+	SrcPath  string      `bson:"src_path" json:"src_path"`
 }
 
 type USBCopyFromNode struct {
-	Config USBCopyFromNodeConfig `json:"config"`
+	Config USBCopyFromNodeConfig `bson:"config" json:"config"`
 }
 
 type USBProtocol int

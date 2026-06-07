@@ -26,12 +26,12 @@ type BaseNode interface {
 }
 
 type Trigger struct {
-	EveryN int `json:"every_n"`
+	EveryN int `bson:"every_n" json:"every_n"`
 }
 
 type BaseNodeProps struct {
-	Hash        string   `json:"hash"`
-	NodeTrigger *Trigger `json:"trigger,omitempty"`
+	Hash        string   `bson:"hash" json:"hash"`
+	NodeTrigger *Trigger `bson:"trigger,omitempty" json:"trigger,omitempty"`
 }
 
 var _ BaseNode = (*HTTPNode)(nil)

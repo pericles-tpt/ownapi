@@ -25,30 +25,30 @@ var (
 type HttpNodeConfig struct {
 	BaseNodeProps
 
-	RawBaseUrl      string    `json:"raw_url"`
-	RawUrlPathParts *[]string `json:"raw_url_path_parts"`
-	Method          string    `json:"method"`
+	RawBaseUrl      string    `bson:"raw_url" json:"raw_url"`
+	RawUrlPathParts *[]string `bson:"raw_url_path_parts" json:"raw_url_path_parts"`
+	Method          string    `bson:"method" json:"method"`
 	// TODO: Currently headers and queryParams are constant, but it's better for them to be variable
 	//			e.g. ?location=Sydney or ?location=Melbourne for a weather node
-	Headers                  *map[string]string `json:"headers"`
-	Params                   *map[string]string `json:"query_params"`
-	MultipartFormParams      *map[string]string `json:"multi_part_form_params"`
-	UserAgent                *string            `json:"user_agent"`
-	UseHeadAndCacheResponses bool               `json:"use_head_and_cache_responses"`
+	Headers                  *map[string]string `bson:"headers" json:"headers"`
+	Params                   *map[string]string `bson:"query_params" json:"query_params"`
+	MultipartFormParams      *map[string]string `bson:"multi_part_form_params" json:"multi_part_form_params"`
+	UserAgent                *string            `bson:"user_agent" json:"user_agent"`
+	UseHeadAndCacheResponses bool               `bson:"use_head_and_cache_responses" json:"use_head_and_cache_responses"`
 
-	OutputKey string `json:"output_key"`
+	OutputKey string `bson:"output_key" json:"output_key"`
 }
 
 type HTTPNode struct {
-	Config     HttpNodeConfig `json:"config"`
-	CacheCheck *HeadProps     `json:"cache_check"`
+	Config     HttpNodeConfig `bson:"config" json:"config"`
+	CacheCheck *HeadProps     `bson:"cache_check" json:"cache_check"`
 }
 
 type HeadProps struct {
-	LastModified       *time.Time `json:"last_modified"`
-	LastModifiedAsEtag *string    `json:"last_modified_as_etag"`
+	LastModified       *time.Time `bson:"last_modified" json:"last_modified"`
+	LastModifiedAsEtag *string    `bson:"last_modified_as_etag" json:"last_modified_as_etag"`
 
-	Etag string `json:"etag"`
+	Etag string `bson:"etag" json:"etag"`
 }
 
 type HTTPStatus struct {

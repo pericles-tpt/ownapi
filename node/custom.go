@@ -14,14 +14,14 @@ import (
 type CustomNodeConfig struct {
 	BaseNodeProps
 
-	Name string `json:"name"`
+	Name string `bson:"name" json:"name"`
 
-	InputKeys  []string `json:"input_keys"`
-	OutputKeys []string `json:"output_keys"`
+	InputKeys  []string `bson:"input_keys" json:"input_keys"`
+	OutputKeys []string `bson:"output_keys" json:"output_keys"`
 }
 
 type CustomNode struct {
-	Config CustomNodeConfig `json:"config"`
+	Config CustomNodeConfig `bson:"config" json:"config"`
 }
 
 func CreateCustomNode(propMap map[string]any, cfg CustomNodeConfig) (CustomNode, error) {
