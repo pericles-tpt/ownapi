@@ -17,15 +17,17 @@ Add .go files to this folder to dynamically add functionality to `ownapi`. A `ma
 
    e. PUBLIC FUNCTIONS: Return values will be converted to an `([]any, error)`, if your return arguments include one or more error(s), the last error will be return as the 2nd return argument
 
-   f. PUBLIC FUNCTIONS: MUST only use a subset of types (or 1D arrays of them for the input parameters and return types), these are:
-	   - "string", "int", "uint", "rune", "byte", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "float32", "float64", "bool", "time.Time", "error"
+   f. PUBLIC FUNCTIONS: MUST only use a subset of types (or 1D arrays of them) for the input parameters and return types, these are:
+
+   		"string", "int", "uint", "rune", "byte", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "float32", "float64", "bool", "time.Time", "error"
 
    g. Only libraries from the following whitelist can be used:
-      - "fmt", "strings", "math", "time", "errors"
 
-4. As long as your code is valid go and follows the above rules, it'll be made available at runtime in `ownapi`
-5. You can also modify the code here at runtime and it'll typically be reloaded in < 3s. If the code is invalid you'll see a log in STDOUT and it'll revert to the previous valid plugin
-6. You can use the included `main.go` to test your functions, anything in that file will be ignored for code generation. To run `main()` use this command (from root, to run from another path just update the path accordingly):
+   		"fmt", "strings", "math", "time", "errors"
+
+5. As long as your code is valid go and follows the above rules, it'll be made available at runtime in `ownapi`
+6. You can also modify the code here at runtime and it'll typically be reloaded in < 3s. If the code is invalid you'll see a log in STDOUT and it'll revert to the previous valid plugin
+7. You can use the included `main.go` to test your functions, anything in that file will be ignored for code generation. To run `main()` use this command (from root, to run from another path just update the path accordingly):
 ```
 go run ./user_functions/source/main.go
 ```
