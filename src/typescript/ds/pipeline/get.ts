@@ -6,6 +6,10 @@ export function getNodeTypeLabel(type: NodeType): string {
             return "HTTP"
         case NodeType.Json:
             return "JSON"
+        case NodeType.UsbCopy:
+            return "USB COPY"
+        case NodeType.Custom:
+            return "CUSTOM"
         default:
             return "UNKNOWN TYPE"
     }

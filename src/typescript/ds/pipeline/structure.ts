@@ -11,7 +11,9 @@ export type BaseNode = {
 
 export enum NodeType {
     Http = 0,
-    Json
+    Json,
+    UsbCopy,
+	Custom,
 }
 
 export type nodeError = {
