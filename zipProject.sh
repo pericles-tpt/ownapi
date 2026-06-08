@@ -16,6 +16,8 @@ npx webpack
 GOOS=linux GOARCH=amd64 go build -o ./build/
 
 # Copy required files to `build/` directory
+mkdir -p build/_bin
+cp -R _bin/* build/_bin/
 mkdir -p build/_config
 cp -R _config/* build/_config/
 mkdir -p build/_functions
