@@ -13,18 +13,35 @@
 </head>
 
 <body>
-    <div sidebar>
+    <aside sidebar>
         <h1>ownapi</h1>
-        <label>
-            <input type="checkbox" name="live-mode">
-            live mode
-        </label>
-        <div pipelines>
+        <div sidebar-button>
+            create
         </div>
+        <div sidebar-button>
+            view
+        </div>
+        <div sidebar-button>
+            monitor
+        </div>
+        <div sidebar-button>
+            test
+        </div>
+    </aside>
+    <div page>
+        <header topbar>
+        </header>
+        <main>
+        </main>
     </div>
-    <main>
-    </main>
 </body>
+<template id="main-view-tmpl">
+    <label>
+        <input type="checkbox" name="live-mode">
+          live mode
+    </label>
+    <div pipelines></div>
+</template>
 <template id="modal-tmpl">
     <div modal-bg>
         <div modal>

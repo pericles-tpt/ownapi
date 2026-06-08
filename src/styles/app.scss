@@ -178,3 +178,10 @@ header {
 [search] {
     margin-bottom: $base-pad;
 }
+
+[sidebar-button] {
+    cursor: pointer;
+    align-self: center;
+    font-size: $font-xlarge;
+    line-height: 2;
+}

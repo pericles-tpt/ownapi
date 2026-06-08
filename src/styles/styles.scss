@@ -23,7 +23,7 @@ $two-pad: calc(2 * $base-pad);
 $three-pad: calc(3 * $base-pad);
 
 $font-small: 1rem;
-$font-medium: 1.125;
+$font-medium: 1.125rem;
 $font-large: 1.25rem;
 $font-xlarge: 1.5rem;
 $font-xxlarge: 2rem;
@@ -113,12 +113,13 @@ body {
 
     [sidebar] {
         display: flex;
+        flex-direction: column;
         flex: 1;
         background-color: $black;
 
         h1 {
             font-weight: bold;
-            line-height: 38px;
+            font-size: $font-xxlarge;
             align-self:  center;
         }
 
@@ -172,7 +173,6 @@ body {
         font-size: $font-xxlarge;
     
         z-index: $z-post-two;
-        padding: $three-pad;
 
         [title] {
             font-weight: bold;
@@ -207,12 +207,16 @@ body {
         }
     }    
 
-    main {
+    [page] {
         display: flex;
         flex: 6;
     
         > div {
             height: 100%;
+        }
+
+        header {
+            background-color: $black;
         }
 
         h1 {
