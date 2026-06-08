@@ -1,12 +1,7 @@
 package secrets
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"crypto/sha256"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -33,30 +28,35 @@ var (
 	keyringTypeString = "user"
 )
 
-func Init(secretsFile string, pipelinesBytes []byte) error {
+func Init(secretsFile string) ([]byte, []string, error) {
+	var (
+		pw          []byte
+		secretNames []string
+		err         error
+	)
+	keyringId, err = unix.KeyctlGetKeyringID(keyringType, true)
+	if err != nil {
+		return pw, secretNames, errors.Wrap(err, "failed to get keyring for storage of secrets")
+	}
+
 	secrets_prefix = fmt.Sprintf("%s%s", config.GetSecretsPrefix(), config.GetPrefixesSeparator())
 	separator = rune(config.GetPrefixesSeparator()[0])
 
-	pw, err := setupSecretsOrPromptPassword(secretsFile)
+	pw, err = setupSecretsOrPromptPassword(secretsFile)
 	if err != nil {
-		return err
-	}
-	defer utility.WipeBytes(pw)
-
-	existingSecretKeys, err := loadToLKKS(secretsFile, pw)
-	if err != nil {
-		return err
+		return pw, secretNames, err
 	}
 
-	err = promptForMissingSecrets(existingSecretKeys, pipelinesBytes, secretsFile, pw)
+	secretNames, err = loadToLKKS(secretsFile, pw)
 	if err != nil {
-		return err
+		return pw, secretNames, err
 	}
 
-	return nil
+	return pw, secretNames, nil
 }
 
-func promptForMissingSecrets(existingKeys []string, pipelinesFileBytes []byte, secretsFileName string, pw []byte) error {
+func PromptForMissingSecretsWipePW(existingKeys []string, pipelinesFileBytes []byte, secretsFileName string, pw []byte) error {
+	defer utility.WipeBytes(pw)
 	pipelinesFileString := string(pipelinesFileBytes)
 	pipelineSecrets, _, _ := GetSecretsOffsetsLens(pipelinesFileString)
 
@@ -198,7 +198,7 @@ func MaybeReplaceSecretsInString(target string) (bool, string, error) {
 
 			newStringParts = append(newStringParts, partsAroundSecret[0])
 
-			secret, err := getKeyFromLKKS(sn)
+			secret, err := GetKeyFromLKKS(sn)
 			if err != nil {
 				return false, "", errors.Wrapf(err, "failed to retrieve secret '%s' from LKKS", sn)
 			}
@@ -281,18 +281,15 @@ func setupSecretsOrPromptPassword(filename string) ([]byte, error) {
 		}
 	}
 
-	hash := sha256.New()
-	hash.Write(pw)
-	pw = hash.Sum(nil)
-
+	pw = utility.HashSHA256(pw)
 	if newPassword {
 		// Create file with a sample encrypted contents, test decryption
 		contents := []byte("sample:abc\n")
-		encrypted, err := encryptGCM(contents, pw)
+		encrypted, err := utility.EncryptAES256GCM(contents, pw)
 		if err != nil {
 			return pw, errors.Wrap(err, "failed to encrypt sample file contents with new pw")
 		}
-		decrypted, err := decryptGCM(encrypted, pw)
+		decrypted, err := utility.DecryptAES256GCM(encrypted, pw)
 		if err != nil {
 			return pw, errors.Wrap(err, "failed to decrypt sample file contents with new pw")
 		}
@@ -313,10 +310,6 @@ func loadToLKKS(file string, pw []byte) ([]string, error) {
 		keys []string
 		err  error
 	)
-	keyringId, err = unix.KeyctlGetKeyringID(keyringType, true)
-	if err != nil {
-		return keys, errors.Wrap(err, "failed to get keyring for storage of secrets")
-	}
 
 	fb, err := os.ReadFile(file)
 	if err != nil {
@@ -324,7 +317,7 @@ func loadToLKKS(file string, pw []byte) ([]string, error) {
 	}
 	defer utility.WipeBytes(fb)
 
-	dfb, err := decryptGCM(fb, pw)
+	dfb, err := utility.DecryptAES256GCM(fb, pw)
 	if err != nil {
 		return keys, err
 	}
@@ -413,14 +406,15 @@ func AddKeyToLKKS(k string, v []byte) error {
 		Id:   keyId,
 		Size: len(v),
 	}
+	fmt.Println("kntids: ", keynameToIdSize)
 
 	return nil
 }
 
-// getKeyFromLKKS, it's the caller's responsibility to zero bytes
+// GetKeyFromLKKS, it's the caller's responsibility to zero bytes
 //
 // after use and avoid converting to less safe types like string
-func getKeyFromLKKS(k string) ([]byte, error) {
+func GetKeyFromLKKS(k string) ([]byte, error) {
 	vt, err := getKeyValue(k)
 	if err != nil {
 		return vt, errors.Wrapf(err, "failed to get secret with key: '%s'", k)
@@ -435,7 +429,7 @@ func writeNewSecretsToFileAndLKKS(newSecrets []byte, file string, pw []byte) err
 	}
 	defer utility.WipeBytes(fb)
 
-	dfb, err := decryptGCM(fb, pw)
+	dfb, err := utility.DecryptAES256GCM(fb, pw)
 	if err != nil {
 		return err
 	}
@@ -443,7 +437,7 @@ func writeNewSecretsToFileAndLKKS(newSecrets []byte, file string, pw []byte) err
 
 	dfb = append(dfb, newSecrets...)
 
-	efb, err := encryptGCM(dfb, pw)
+	efb, err := utility.EncryptAES256GCM(dfb, pw)
 	if err != nil {
 		return err
 	}
@@ -462,45 +456,4 @@ func getKeyValue(keyName string) ([]byte, error) {
 		return nil, err
 	}
 	return buf[:n], nil
-}
-
-// SOURCE: https://dev.to/shrsv/encryption-and-decryption-in-go-a-hands-on-guide-3bcl
-// TODO: Review these later
-func encryptGCM(plaintext, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, err
-	}
-
-	return gcm.Seal(nonce, nonce, plaintext, nil), nil
-}
-
-func decryptGCM(ciphertext, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	nonceSize := gcm.NonceSize()
-	if len(ciphertext) < nonceSize {
-		return nil, fmt.Errorf("ciphertext too short")
-	}
-
-	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
-	return gcm.Open(nil, nonce, ciphertext, nil)
 }
