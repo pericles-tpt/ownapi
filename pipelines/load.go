@@ -209,7 +209,19 @@ func getBaseNode(maybeNode any, nodeType node.NodeType, reload bool) (node.BaseN
 			return ret, errors.Wrap(err, "failed to create Custom node")
 		}
 		return &cn, nil
+	case node.Binary:
+		maybeBN := node.BinaryNode{}
+		err = json.Unmarshal(bs, &maybeBN)
+		if err != nil {
+			return ret, errors.Wrap(err, "failed to unmarshal JSON for Binary node type")
+		}
+		bn, err := node.CreateBinaryNode(propMap, maybeBN.Config)
+		if err != nil {
+			return ret, errors.Wrap(err, "failed to create Binary node")
+		}
+		return &bn, nil
 	}
+
 	return ret, fmt.Errorf("failed to find node matching type: %v", nodeType)
 }
 

@@ -48,6 +48,7 @@ const (
 	Json
 	UsbCopy
 	Custom
+	Binary
 )
 
 var (
