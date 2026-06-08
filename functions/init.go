@@ -49,7 +49,14 @@ func Init() error {
 	generatedGoFileForReference = fmt.Sprintf("%s/main.go", generatedGoDir)
 	generatedSOPath = fmt.Sprintf("%s/main.so", generatedGoDir)
 
-	reload(true)
+	bef := time.Now()
+	success := reload(true)
+	took := time.Since(bef)
+	if !success {
+		return fmt.Errorf("failed first compile")
+	} else {
+		fmt.Printf("[PLUGIN] finished first compile in: %v\n", took)
+	}
 	return nil
 }
 
@@ -95,9 +102,18 @@ func reload(initialLoad bool) bool {
 		filePaths, fileBasenames []string
 		filesContents            [][]byte
 	)
-	filePaths, fileBasenames, filesContents, _, err = getFilesToCompile(customFunctionsPath, nil)
+	filePaths, fileBasenames, filesContents, _, err = utility.WalkMaxDepth1(customFunctionsPath, nil, func(s string) bool { return strings.HasSuffix(s, ".go") && s != "main.go" }, func(s string) bool { return true })
 	if err != nil {
 		return false
+	}
+
+	for i, fb := range filesContents {
+		// Format with `gofmt`, simplifies parsing a lot
+		filesContents[i], err = format.Source(fb)
+		if err != nil {
+			err = errors.Wrapf(err, "failed to format go file '%s', likely invalid", filePaths[i])
+			return false
+		}
 	}
 
 	var (
@@ -301,119 +317,4 @@ func setBuildEnvVars() []string {
 		}
 	}
 	return envs
-}
-
-func getFilesToCompile(root string, basenameModMap *map[string]time.Time) ([]string, []string, [][]byte, *[]bool, error) {
-	var (
-		filePaths     = []string{}
-		fileBasenames = []string{}
-		filesContents = [][]byte{}
-		isNew         *[]bool
-	)
-	dirents, err := os.ReadDir(root)
-	if err != nil {
-		return filePaths, fileBasenames, filesContents, isNew, errors.Wrapf(err, "failed to read `%s`", root)
-	}
-	filePaths = make([]string, 0, len(dirents))
-	fileBasenames = make([]string, 0, len(dirents))
-	filesContents = make([][]byte, 0, len(dirents))
-	if basenameModMap != nil {
-		in := make([]bool, 0, len(dirents))
-		isNew = &in
-	}
-
-	var (
-		parents = []struct {
-			lastChild int
-			path      string
-		}{
-			{
-				lastChild: len(dirents) - 1,
-				path:      root,
-			},
-		}
-		currParentIdx = 0
-	)
-
-	for i := 0; i < len(dirents); i++ {
-		if i > parents[currParentIdx].lastChild {
-			currParentIdx++
-		}
-		currParentPath := parents[currParentIdx].path
-		currParentLastChild := parents[currParentIdx].lastChild
-
-		var (
-			de   = dirents[i]
-			name = de.Name()
-			path = fmt.Sprintf("%s/%s", currParentPath, name)
-		)
-		if de.IsDir() {
-			nestedDirents, err := os.ReadDir(path)
-			if err != nil {
-				return filePaths, fileBasenames, filesContents, isNew, errors.Wrapf(err, "failed to read dir in root `%s`", path)
-			}
-
-			// NOTE: Only support 1 level of file nesting from root, currently
-			nestedFiles := make([]os.DirEntry, 0, len(nestedDirents))
-			for _, de := range nestedDirents {
-				if de.Type().IsRegular() {
-					nestedFiles = append(nestedFiles, de)
-				}
-			}
-			dirents = append(dirents, nestedFiles...)
-
-			parents = append(parents, struct {
-				lastChild int
-				path      string
-			}{
-				lastChild: currParentLastChild + len(nestedDirents),
-				path:      path,
-			})
-			continue
-		}
-
-		if de.Type().IsRegular() && strings.HasSuffix(name, ".go") && name != "main.go" {
-			if basenameModMap != nil {
-				info, err := de.Info()
-				if err != nil {
-					fmt.Printf("WARN: Failed to read file: %s\n", name)
-					continue
-				}
-				currLastModified := info.ModTime()
-
-				(*isNew) = append((*isNew), false)
-				var (
-					prevLastModified time.Time
-					exists           bool
-				)
-				if prevLastModified, exists = (*basenameModMap)[name]; !exists {
-					(*isNew)[len(*isNew)-1] = true
-				}
-				isModified := prevLastModified != currLastModified
-				funcsModified[name] = currLastModified
-
-				if !isModified {
-					continue
-				}
-			}
-
-			var contents []byte
-			contents, err := os.ReadFile(path)
-			if err != nil {
-				return filePaths, fileBasenames, filesContents, isNew, errors.Wrapf(err, "failed to read file '%s'", path)
-			}
-
-			// Format with `gofmt`, simplifies parsing a lot
-			contents, err = format.Source(contents)
-			if err != nil {
-				return filePaths, fileBasenames, filesContents, isNew, errors.Wrapf(err, "failed to format go file '%s', likely invalid", path)
-			}
-
-			filesContents = append(filesContents, contents)
-			filePaths = append(filePaths, path)
-			fileBasenames = append(fileBasenames, name)
-		}
-	}
-
-	return filePaths, fileBasenames, filesContents, isNew, nil
 }

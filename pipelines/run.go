@@ -196,10 +196,7 @@ func runPipeline(pipeline Pipeline, idx int, propMap map[string]any, maybeTrigge
 	took := time.Since(start).Microseconds()
 	setPipelineOverallTimingUs(idx, took)
 
-	time.Sleep(time.Millisecond)
-
 	completePipeline(idx, maybeTriggeredByFirstNodeDuration)
-	fmt.Println("FINISHED PIPELINE!")
 
 	return propMap, cancelRun, nil
 }
