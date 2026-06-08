@@ -4,7 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/pericles-tpt/ownapi/secrets"
+	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
 )
 
@@ -23,8 +25,9 @@ const (
 var (
 	tmpTarDst string
 
-	expTarHash  string
 	untarFilter = []string{"bin", "pkg", "src", "go.env"}
+
+	lkksTarHashKey string
 )
 
 type GoBinaryMetadata = []GoVersionMetadata
@@ -74,16 +77,16 @@ func validateUnpackGoTar(tarDestDir string) error {
 	// After download check hashes match
 	// TODO: This accounts for 1s of slowness, the JSON payload is quite big but it doesn't look like you can
 	// 		 retrieve metadata for a specific go version from the docs: https://pkg.go.dev/golang.org/x/website/internal/dl
-	expTarHash, err = getRemoteGoBinaryTarHash(version)
+	expTarHash, err := getGoBinTarHashFromRemoteOrLKKS(version)
 	if err != nil {
 		return errors.Wrapf(err, "error occurred getting go binary tar hash from %s", goBinHTTPSourcePrefix)
 	}
-	s := sha256.New()
-	s.Write(buf.Bytes())
-	gotTarHash := fmt.Sprintf("%x", s.Sum(nil))
-	if gotTarHash != expTarHash {
-		return fmt.Errorf("hash mismatch between got != exp, %s != %s", gotTarHash, expTarHash)
+	defer utility.WipeBytes(expTarHash)
+	gotTarHash := utility.HashSHA256PreserveInput(buf.Bytes())
+	if !utility.BytesEqual(gotTarHash, expTarHash) {
+		return fmt.Errorf("hash mismatch between got != exp, %s != HIDDEN", gotTarHash)
 	}
+	utility.WipeBytes(expTarHash)
 
 	// Untar and retrieve binary
 	gzr, err := gzip.NewReader(&buf)
@@ -179,23 +182,35 @@ func getGoTar(version string, destPath string) (bytes.Buffer, error) {
 	return buf, nil
 }
 
-func getRemoteGoBinaryTarHash(version string) (string, error) {
+func getGoBinTarHashFromRemoteOrLKKS(version string) ([]byte, error) {
+	var (
+		hash []byte
+		err  error
+	)
+	if len(lkksTarHashKey) > 0 {
+		hash, err := secrets.GetKeyFromLKKS(lkksTarHashKey)
+		if err != nil {
+			return hash, errors.Wrapf(err, "failed to retrieve go tar hash from lkks with key '%s'", lkksTarHashKey)
+		}
+		return hash, nil
+	}
+
 	resp, err := http.Get(fmt.Sprintf("%s/?mode=json&include=all", goBinHTTPSourcePrefix))
 	if err != nil {
-		return "", errors.Wrap(err, "failed to get metadata from HTTP source")
+		return hash, errors.Wrap(err, "failed to get metadata from HTTP source")
 	}
 	defer resp.Body.Close()
 
 	buf := bytes.Buffer{}
 	_, err = buf.ReadFrom(resp.Body)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to read body after successful request")
+		return hash, errors.Wrap(err, "failed to read body after successful request")
 	}
 
 	md := GoBinaryMetadata{}
 	err = json.Unmarshal(buf.Bytes(), &md)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to unmarshal body to GoBinaryMetadata")
+		return hash, errors.Wrap(err, "failed to unmarshal body to GoBinaryMetadata")
 	}
 
 	var (
@@ -206,11 +221,24 @@ func getRemoteGoBinaryTarHash(version string) (string, error) {
 		if vmd.Version == version {
 			for _, f := range vmd.Files {
 				if f.Arch == arch && f.OS == os {
-					return f.Sha256, nil
+					hashStr := f.Sha256
+					hash, err = hex.DecodeString(hashStr)
+					if err != nil {
+						return hash, errors.Wrap(err, "found matching file in response but failed to decode sha256 as hex")
+					}
+
+					lkksTarHashKey = "goTarHash"
+					err = secrets.AddKeyToLKKS(lkksTarHashKey, hash)
+					if err != nil {
+						return hash, errors.Wrap(err, "retrieved hash bytes but failed to store in LKKS")
+					}
+
+					return hash, nil
 				}
 			}
-			return "", fmt.Errorf("found version %s in response but no matching arch and os found", version)
+			return hash, fmt.Errorf("found version %s in response but no matching arch and os found", version)
 		}
 	}
-	return "", fmt.Errorf("no version matching %s found", version)
+
+	return hash, fmt.Errorf("no version matching %s found", version)
 }
