@@ -14,6 +14,7 @@ export enum NodeType {
     Json,
     UsbCopy,
 	Custom,
+    Binary,
 }
 
 export type nodeError = {
