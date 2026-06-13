@@ -17,7 +17,7 @@
                         "use_head_and_cache_responses": true,
                         "output_key": "output:json",
                         "trigger": {
-                            "every_n": 40000
+                            "every_n": 480000
                         }
                     },
                     "cache_check": {
