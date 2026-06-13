@@ -55,16 +55,28 @@ func Init(secretsFile string) ([]byte, []string, error) {
 	return pw, secretNames, nil
 }
 
-func PromptForMissingSecretsWipePW(existingKeys []string, pipelinesFileBytes []byte, secretsFileName string, pw []byte) error {
+func PromptForMissingSecretsWipePW(existingKeys []string, pipelinesFileBytes []byte, secretsFileName string, pw []byte, runtimeConfigPath string) error {
 	defer utility.WipeBytes(pw)
+
+	// Secrets can be defined in `pipelines.json` and `runtime.json`,
+	// check contents of both for secrets that aren't stored yet
 	pipelinesFileString := string(pipelinesFileBytes)
 	pipelineSecrets, _, _ := GetSecretsOffsetsLens(pipelinesFileString)
+	secrets := pipelineSecrets
+
+	bs, err := os.ReadFile(runtimeConfigPath)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read runtime config at: %s", runtimeConfigPath)
+	}
+	runtimeConfigFileString := string(bs)
+	runtimeConfigSecrets, _, _ := GetSecretsOffsetsLens(runtimeConfigFileString)
+	secrets = append(secrets, runtimeConfigSecrets...)
 
 	var (
 		newSecretsBuffer = make([]byte, 0, 1024)
 	)
 	defer utility.WipeBytes(newSecretsBuffer)
-	for _, secretKey := range pipelineSecrets {
+	for _, secretKey := range secrets {
 		if _, exists := utility.Contains(secretKey, existingKeys); !exists {
 			var (
 				validInput bool

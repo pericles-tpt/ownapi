@@ -81,16 +81,10 @@ func GetInitPropsForPipeline(pipelineName string) map[string]any {
 
 	for k, v := range globals {
 		pre := getPrefix(k)
-		// if sv, ok := v.(string); ok {
-		// 	_, v, _ = secrets.MaybeReplaceSecretsInString(sv)
-		// }
 		ret[fmt.Sprintf("%s:%s", pre, k)] = v
 	}
 	for k, v := range pipeline {
 		pre := getPrefix(k)
-		// if sv, ok := v.(string); ok {
-		// 	_, v, _ = secrets.MaybeReplaceSecretsInString(sv)
-		// }
 		ret[fmt.Sprintf("%s:%s", pre, k)] = v
 	}
 	return ret

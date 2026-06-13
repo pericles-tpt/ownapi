@@ -8,6 +8,7 @@ import (
 	"github.com/pericles-tpt/ownapi/config"
 	log2 "github.com/pericles-tpt/ownapi/log"
 	"github.com/pericles-tpt/ownapi/node"
+	"github.com/pericles-tpt/ownapi/secrets"
 	"github.com/pkg/errors"
 )
 
@@ -43,6 +44,14 @@ func Run(name *string, idx *int, maybeTriggeredByFirstNodeDuration *time.Duratio
 
 	// Initialise propMap from dynamic config
 	propMap := config.GetInitPropsForPipeline(pl.Name)
+	for k, v := range propMap {
+		if sv, ok := v.(string); ok {
+			_, propMap[k], err = secrets.MaybeReplaceSecretsInString(sv)
+			if err != nil {
+				propMap[k] = v
+			}
+		}
+	}
 
 	propMap, exists, err = runPipeline(pl, *idx, propMap, maybeTriggeredByFirstNodeDuration)
 	if err != nil {
