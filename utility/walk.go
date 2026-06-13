@@ -39,6 +39,7 @@ func WalkMaxDepth1(root string, fileModMap *map[string]time.Time, fileFilter, di
 			},
 		}
 		currParentIdx = 0
+		currLastChild = len(dirents) - 1
 	)
 
 	for i := 0; i < len(dirents); i++ {
@@ -46,7 +47,6 @@ func WalkMaxDepth1(root string, fileModMap *map[string]time.Time, fileFilter, di
 			currParentIdx++
 		}
 		currParentPath := parents[currParentIdx].path
-		currParentLastChild := parents[currParentIdx].lastChild
 
 		var (
 			de   = dirents[i]
@@ -69,11 +69,12 @@ func WalkMaxDepth1(root string, fileModMap *map[string]time.Time, fileFilter, di
 				}
 				dirents = append(dirents, nestedFiles...)
 
+				currLastChild = currLastChild + len(nestedFiles)
 				parents = append(parents, struct {
 					lastChild int
 					path      string
 				}{
-					lastChild: currParentLastChild + len(nestedDirents),
+					lastChild: currLastChild,
 					path:      path,
 				})
 			}
