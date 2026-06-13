@@ -9,6 +9,7 @@ import (
 	"time"
 
 	gomtp "github.com/pericles-tpt/go-mtp"
+	"github.com/pericles-tpt/ownapi/secrets"
 	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
 )
@@ -67,9 +68,11 @@ func CreateUSBCopyFromNode(propMap map[string]any, cfg USBCopyFromNodeConfig, re
 func (un *USBCopyFromNode) verifyAccess() error {
 	switch un.Config.Protocol {
 	case MTP:
-		dev, err := gomtp.GetDeviceBySerialNumber(un.Config.SerialNo)
+		serialNo := un.getSerialNo()
+
+		dev, err := gomtp.GetDeviceBySerialNumber(serialNo)
 		if err != nil {
-			return errors.Wrapf(err, "failed to access device over MTP with serial no: %s", un.Config.SerialNo)
+			return errors.Wrapf(err, "failed to access device over MTP with serial no: %s", serialNo)
 		}
 		dev.ReleaseDevice()
 	default:
@@ -128,9 +131,11 @@ func (un *USBCopyFromNode) Trigger(propMap map[string]any, useCache bool) (map[s
 
 	switch un.Config.Protocol {
 	case MTP:
-		dev, err := gomtp.GetDeviceBySerialNumber(un.Config.SerialNo)
+		serialNo := un.getSerialNo()
+
+		dev, err := gomtp.GetDeviceBySerialNumber(serialNo)
 		if err != nil {
-			return outputMap, errors.Wrapf(err, "failed to retrieve device matching serial number: %s", un.Config.SerialNo)
+			return outputMap, errors.Wrapf(err, "failed to retrieve device matching serial number: %s", serialNo)
 		}
 		defer dev.ReleaseDevice()
 
@@ -331,6 +336,14 @@ func (un *USBCopyFromNode) revert(changed *bool, propMap map[string]any) {
 			}
 		}
 	}
+}
+
+func (un *USBCopyFromNode) getSerialNo() string {
+	_, maybeSerialNo, err := secrets.MaybeReplaceSecretsInString(un.Config.SerialNo)
+	if err != nil {
+		return un.Config.SerialNo
+	}
+	return maybeSerialNo
 }
 
 // TODO: No-ops, review

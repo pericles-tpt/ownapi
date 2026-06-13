@@ -44,10 +44,6 @@ func ActivityListToSummary(activities []string) (string, error) {
 			}
 			validActivityTimes = append(validActivityTimes, t.Format(outputDateTimeFormat))
 		}
-
-	}
-	if len(invalidActivitesNames) > 0 {
-		return "", fmt.Errorf("failed to parse activities with the following pre-extension names:\n\t- %s", strings.Join(invalidActivitesNames, "\n\t- "))
 	}
 
 	return fmt.Sprintf("Successfuly imported garmin activities started at the following times: %s", strings.Join(validActivityTimes, ", ")), nil

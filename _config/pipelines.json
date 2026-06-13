@@ -32,7 +32,7 @@
                     "config": {
                         "hash": "",
                         "name": "ExtractIdAndTimezone",
-                        "input_keys": ["json", "input:postcode", "input:suburb", "input:state"],
+                        "input_keys": ["json", "postcode", "suburb", "state"],
                         "output_keys": ["id", "4:timezone"]
                     }
                 }
@@ -235,7 +235,7 @@
                         "trigger": {
                             "every_n": 60000
                         },
-                        "serial_no": "secrets:garmin_serial_no",
+                        "serial_no": "secret:garmin_serial_no",
                         "protocol": 0,
                         "perms": 1,
                         "src_path": "/"
