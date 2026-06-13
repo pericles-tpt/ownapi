@@ -406,7 +406,6 @@ func AddKeyToLKKS(k string, v []byte) error {
 		Id:   keyId,
 		Size: len(v),
 	}
-	fmt.Println("kntids: ", keynameToIdSize)
 
 	return nil
 }

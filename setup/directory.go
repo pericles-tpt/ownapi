@@ -14,7 +14,6 @@ var (
 	stages  = []string{"output"}
 	nodeMap = map[string][]string{
 		"http":   {},
-		"json":   {},
 		"usb":    {"copy"},
 		"custom": {},
 	}

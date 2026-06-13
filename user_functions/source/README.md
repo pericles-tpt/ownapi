@@ -23,7 +23,7 @@ Add .go files to this folder to dynamically add functionality to `ownapi`. A `ma
 
    g. Only libraries from the following whitelist can be used:
 
-   		"fmt", "strings", "math", "time", "errors"
+   		"fmt", "strings", "math", "time", "encoding/json", "errors"
 
 5. As long as your code is valid go and follows the above rules, it'll be made available at runtime in `ownapi`
 6. You can also modify the code here at runtime and it'll typically be reloaded in < 3s. If the code is invalid you'll see a log in STDOUT and it'll revert to the previous valid plugin

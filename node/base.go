@@ -35,7 +35,6 @@ type BaseNodeProps struct {
 }
 
 var _ BaseNode = (*HTTPNode)(nil)
-var _ BaseNode = (*JSONNode)(nil)
 var _ BaseNode = (*CustomNode)(nil)
 
 // Nested
@@ -45,14 +44,12 @@ type NodeType int
 
 const (
 	Http NodeType = iota
-	Json
 	UsbCopy
 	Custom
 	Binary
 )
 
 var (
-	jsonResponseCacheOutputPath string
 	httpResponseCacheOutputPath string
 
 	usbCopyResponseCacheOutputPath string
@@ -64,10 +61,6 @@ func Init() error {
 	httpResponseCacheOutputPath, _, err = setup.GetDirectoryPath([2]string{"http"})
 	if err != nil {
 		return errors.Wrap(err, "failed to init `httpResponseCacheOutputPath`")
-	}
-	jsonResponseCacheOutputPath, _, err = setup.GetDirectoryPath([2]string{"json"})
-	if err != nil {
-		return errors.Wrap(err, "failed to init `jsonResponseCacheOutputPath`")
 	}
 	usbCopyResponseCacheOutputPath, _, err = setup.GetDirectoryPath([2]string{"usb", "copy"})
 	if err != nil {

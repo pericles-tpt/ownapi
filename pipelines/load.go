@@ -176,17 +176,6 @@ func getBaseNode(maybeNode any, nodeType node.NodeType, reload bool) (node.BaseN
 			return ret, errors.Wrap(err, "failed to create Http node")
 		}
 		return &hn, nil
-	case node.Json:
-		maybeJN := node.JSONNode{}
-		err = json.Unmarshal(bs, &maybeJN)
-		if err != nil {
-			return ret, errors.Wrap(err, "failed to unmarshal JSON for Json node type")
-		}
-		jn, err := node.CreateJSONNode(propMap, maybeJN.Config)
-		if err != nil {
-			return ret, errors.Wrap(err, "failed to create JSON node")
-		}
-		return &jn, nil
 	case node.UsbCopy:
 		maybeUC := node.USBCopyFromNode{}
 		err = json.Unmarshal(bs, &maybeUC)

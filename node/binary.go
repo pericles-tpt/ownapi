@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/pericles-tpt/ownapi/binary"
 	"github.com/pericles-tpt/ownapi/utility"
 	"github.com/pkg/errors"
@@ -62,8 +61,6 @@ func (cn *BinaryNode) Trigger(propMap map[string]any, useCache bool) (map[string
 		cn.Config = oldCfg
 	}(cn, cn.Config)
 	cn.Config = newCfg
-
-	fmt.Println("new cfg: ", spew.Sdump(newCfg))
 
 	err = binary.Run(cn.Config.BinaryName, cn.Config.Params)
 	if err != nil {
