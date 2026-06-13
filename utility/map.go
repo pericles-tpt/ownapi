@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -49,16 +50,39 @@ func OverrideTypeFromJSONMap[T any](original T, overrides map[string]any) (T, er
 	}
 	var modified bool
 	for k, v := range updatedMap {
-		var (
-			expKey = fmt.Sprintf("input:%s", k)
-			vAsKey = fmt.Sprint(v)
-		)
+		// Key matches
+		var expKey = fmt.Sprintf("input:%s", k)
 		if newV, ok := overrides[expKey]; ok {
 			updatedMap[k] = newV
 			modified = true
-		} else if newV, ok := overrides[vAsKey]; ok {
-			updatedMap[k] = newV
+		}
+
+		// Types matches (if string)
+		switch t := v.(type) {
+		case string:
+			updatedMap[k] = replacePlaceholders(t, overrides)
 			modified = true
+		case []any:
+			var (
+				i    int
+				newT = make([]any, 0, len(t))
+			)
+			for i = 0; i < len(t); i++ {
+				var (
+					s  string
+					ok bool
+				)
+				if s, ok = t[i].(string); !ok {
+					break
+				}
+				maybeNewS := replacePlaceholders(s, overrides)
+				newT = append(newT, maybeNewS)
+			}
+
+			if i == len(t) {
+				updatedMap[k] = newT
+				modified = true
+			}
 		}
 	}
 	if !modified {
@@ -82,4 +106,22 @@ func AddToMap[T comparable, V any](dst map[T]V, src map[T]V) {
 	for k, v := range src {
 		dst[k] = v
 	}
+}
+
+// TODO: Improve this, it could definitely be faster, but it works at least
+func replacePlaceholders(s string, placeholders map[string]any) string {
+	for k, v := range placeholders {
+		if vs, ok := v.(string); ok {
+			var (
+				newS       = vs
+				exactMatch = s == k
+			)
+
+			if !exactMatch {
+				newS = strings.ReplaceAll(s, k, vs)
+			}
+			s = newS
+		}
+	}
+	return s
 }
