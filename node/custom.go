@@ -39,9 +39,9 @@ func CreateCustomNode(propMap map[string]any, cfg CustomNodeConfig) (CustomNode,
 	}
 	ret.Config = cfg
 
-	cf, err := functions.GetFunc(cfg.Name)
+	cf, err := functions.GetFuncSignature(cfg.Name)
 	if err != nil {
-		return ret, errors.Wrapf(err, "failed to retrieve func with name '%s'", cfg.Name)
+		return ret, errors.Wrapf(err, "failed to retrieve func signature with name '%s'", cfg.Name)
 	}
 
 	if len(cfg.InputKeys) != len(cf.SigParams.Names) {
@@ -84,7 +84,7 @@ func (cn *CustomNode) Trigger(propMap map[string]any, useCache bool) (map[string
 		}
 		params = append(params, propMap[key])
 	}
-	res, err := f.F(params)
+	res, err := f(params)
 	if err != nil {
 		return outputMap, errors.Wrapf(err, "failed to execute func '%s'", cn.Config.Name)
 	}
