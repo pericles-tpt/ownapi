@@ -1,0 +1,293 @@
+[
+    {
+        "name": "weather",
+        "nodes": [
+            [
+                {
+                    "config": {
+                        "hash": "94d6b0f97db823199ccc420a984306440fd557e9",
+                        "raw_url": "https://api.bom.gov.au/apikey/v1/locations/places/autocomplete",
+                        "raw_url_path_parts": null,
+                        "method": "GET",
+                        "headers": null,
+                        "query_params": {
+                            "name": "input:postcode"
+                        },
+                        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                        "use_head_and_cache_responses": true,
+                        "output_key": "output:json",
+                        "trigger": {
+                            "every_n": 40000
+                        }
+                    },
+                    "cache_check": {
+                        "last_modified": null,
+                        "last_modified_as_etag": null,
+                        "etag": ""
+                    }
+                }
+            ],
+            [
+                {
+                    "config": {
+                        "hash": "",
+                        "name": "ExtractIdAndTimezone",
+                        "input_keys": ["json", "input:postcode", "input:suburb", "input:state"],
+                        "output_keys": ["id", "4:timezone"]
+                    }
+                }
+            ],
+            [
+                {
+                    "config": {
+                        "hash": "15458b2e0d58618e3609a76211daadada5493aa0",
+                        "raw_url": "https://api.bom.gov.au/apikey/v1/locations/places/details/place",
+                        "raw_url_path_parts": [
+                            "input:id"
+                        ],
+                        "method": "GET",
+                        "headers": null,
+                        "query_params": {
+                            "filter": "nearby_type:bom_stn,capability:SENSOR_TEMPERATURE_DB,match_coastal_status:true",
+                            "nearby_limit": "0",
+                            "radius": "100000"
+                        },
+                        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                        "use_head_and_cache_responses": true,
+                        "output_key": "output:3:json2"
+                    },
+                    "cache_check": {
+                        "last_modified": null,
+                        "last_modified_as_etag": null,
+                        "etag": ""
+                    }
+                }
+            ],
+            [
+                {
+                    "config": {
+                        "hash": "",
+                        "name": "ExtractXAndY",
+                        "input_keys": ["json2"],
+                        "output_keys": ["x", "y"]
+                    }
+                }
+            ],
+            [
+                {
+                    "config": {
+                        "hash": "0e3d0d0bed33f1daa0ceb26718eb69d9958c9ecd",
+                        "raw_url": "https://api.bom.gov.au/apikey/v1/forecasts/1hourly",
+                        "raw_url_path_parts": [
+                            "input:x",
+                            "input:y"
+                        ],
+                        "method": "GET",
+                        "headers": null,
+                        "query_params": {
+                            "timezone": "input:timezone"
+                        },
+                        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                        "use_head_and_cache_responses": true,
+                        "output_key": "output:json1Hourly"
+                    },
+                    "cache_check": {
+                        "last_modified": null,
+                        "last_modified_as_etag": null,
+                        "etag": ""
+                    }
+                },
+                {
+                    "config": {
+                        "hash": "c5f2195f7df9a2c180d472c901c28ad6a4cfea3b",
+                        "raw_url": "https://api.bom.gov.au/apikey/v1/forecasts/3hourly",
+                        "raw_url_path_parts": [
+                            "input:x",
+                            "input:y"
+                        ],
+                        "method": "GET",
+                        "headers": null,
+                        "query_params": {
+                            "timezone": "input:timezone"
+                        },
+                        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                        "use_head_and_cache_responses": true,
+                        "output_key": "output:json3Hourly"
+                    },
+                    "cache_check": {
+                        "last_modified": null,
+                        "last_modified_as_etag": null,
+                        "etag": ""
+                    }
+                },
+                {
+                    "config": {
+                        "hash": "49d2c02a9696bd0da00ae59a529bbfd0e168f067",
+                        "raw_url": "https://api.bom.gov.au/apikey/v1/forecasts/daily",
+                        "raw_url_path_parts": [
+                            "input:x",
+                            "input:y"
+                        ],
+                        "method": "GET",
+                        "headers": null,
+                        "query_params": {
+                            "timezone": "input:timezone"
+                        },
+                        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                        "use_head_and_cache_responses": true,
+                        "output_key": "output:jsonDaily"
+                    },
+                    "cache_check": {
+                        "last_modified": null,
+                        "last_modified_as_etag": null,
+                        "etag": ""
+                    }
+                }
+            ],
+            [
+                {
+                    "config": {
+                        "hash": "",
+                        "name": "Format",
+                        "input_keys": ["jsonDaily", "json1Hourly", "json3Hourly"],
+                        "output_keys": ["msg"]
+                    }
+                }
+            ],
+            [
+                {
+                    "config": {
+                        "hash": "",
+                        "name": "image test",
+                        "binary_name": "ImageMagick-7.1.2-25-gcc-x86_64.AppImage",
+                        "params": ["-size", "600x800", "-background", "white", "-fill", "black", "-font", "Noto-Serif", "-pointsize", "24", "-gravity", "center", "label:input:msg", "output.png"]
+                        
+                    }
+                }
+            ]
+        ],
+        "nodeTypes": [
+            [
+                0
+            ],
+            [
+                2
+            ],
+            [
+                0
+            ],
+            [
+                2
+            ],
+            [
+                0,
+                0,
+                0
+            ],
+            [
+                2
+            ],
+            [
+                3
+            ]
+        ]
+    },
+    {
+        "name": "transport",
+        "nodes": [
+            [
+                {
+                    "config": {
+                        "hash": "64f4da0b599fcc8866b522ab1be635f7a444fdd9",
+                        "raw_url": "https://api.transport.nsw.gov.au/v1/gtfs/realtime/buses",
+                        "raw_url_path_parts": null,
+                        "method": "GET",
+                        "headers": {
+                            "Authorization": "apikey secret:transport_nsw_key",
+                            "accept": "application/x-google-protobuf"
+                        },
+                        "query_params": null,
+                        "user_agent": null,
+                        "use_head_and_cache_responses": true,
+                        "output_key": "output:bus_info"
+                    },
+                    "cache_check": {
+                        "last_modified": null,
+                        "last_modified_as_etag": null,
+                        "etag": ""
+                    }
+                }
+            ]
+        ],
+        "nodeTypes": [
+            [
+                0
+            ]
+        ]
+    },
+    {
+        "name": "garmin",
+        "nodes": [
+            [
+                {
+                    "config": {
+                        "hash": "1f10abb3ce09ac613db05dccaf0c9cf472b68171",
+                        "trigger": {
+                            "every_n": 60000
+                        },
+                        "serial_no": "secrets:garmin_serial_no",
+                        "protocol": 0,
+                        "perms": 1,
+                        "src_path": "/"
+                    }
+                }
+            ],
+            [
+                {
+                    "config": {
+                        "hash": "",
+                        "name": "ActivityListToSummary",
+                        "input_keys": ["copied_files"],
+                        "output_keys": ["msg"]
+                    }
+                }
+            ],
+            [
+                {
+                    "config": {
+                        "hash": "",
+                        "raw_url": "https://api.pushover.net/1/messages.json",
+                        "raw_url_path_parts": null,
+                        "multi_part_form_params": {
+                            "token": "secret:pushover_garmin_token",
+                            "user": "secret:pushover_garmin_user",
+                            "message": "input:msg"
+                        },
+                        "method": "POST",
+                        "headers": {},
+                        "query_params": null,
+                        "user_agent": null,
+                        "use_head_and_cache_responses": false,
+                        "output_key": "output:pushover_result"
+                    },
+                    "cache_check": {
+                        "last_modified": null,
+                        "last_modified_as_etag": null,
+                        "etag": ""
+                    }
+                }
+            ]
+        ],
+        "nodeTypes": [
+            [
+                1
+            ],
+            [
+                2
+            ],
+            [
+                0
+            ]
+        ]
+    }
+]

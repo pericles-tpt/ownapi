@@ -16,7 +16,7 @@ user_functions/generated/*
 user_functions/*.go
 !user_functions/main.go
 go.tar.gz
-# _bin/*
-!_bin/*.txt
-!_bin/*.md
+_bin/*.txt
+_bin/*.quarrantine
 pipelines.bson
+todo.txt
