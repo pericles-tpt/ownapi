@@ -16,26 +16,20 @@ import (
 )
 
 var (
-	customFunctionsPath         string
-	generatedGoDir              string
-	generatedGoFileForReference string
-	generatedSOPath             string
+	customFunctionsPath string
+	generatedGoDir      string
 )
 
 var (
 	tarValidateRetries = 3
 	tarRetryDelay      = time.Second * 3
 
-	pl *plugin.Plugin
+	pl  *plugin.Plugin
+	plC uint64
 
 	funcNames = []string{}
-	funcs     = []CustomFunc{}
+	funcs     = []FuncComponentSignature{}
 )
-
-type CustomFunc struct {
-	FuncComponentSignature
-	F func([]any) ([]any, error)
-}
 
 func Init() error {
 	for _, t := range typeWhitelist {
@@ -46,8 +40,6 @@ func Init() error {
 
 	customFunctionsPath = config.GetDataDir("user_functions/source")
 	generatedGoDir = fmt.Sprintf("%s/../generated", customFunctionsPath)
-	generatedGoFileForReference = fmt.Sprintf("%s/main.go", generatedGoDir)
-	generatedSOPath = fmt.Sprintf("%s/main.so", generatedGoDir)
 
 	bef := time.Now()
 	success := reload(true)
@@ -132,13 +124,14 @@ func reload(initialLoad bool) bool {
 		return false
 	}
 
-	var numImports, numVars, numConsts, numPubFuncs, numPrivFuncs int
+	var numImports, numVars, numConsts, numPubFuncs, numPrivFuncs, numTypes int
 	for _, c := range components {
 		numImports += len(c.Imports)
 		numVars += len(c.Vars)
 		numConsts += len(c.Consts)
 		numPubFuncs += len(c.PublicFunctions)
 		numPrivFuncs += len(c.PrivateFunctions)
+		numTypes += len(c.Types)
 	}
 	combinedComponents := FileComponents{
 		Imports:          make([]string, 0, numImports),
@@ -146,6 +139,7 @@ func reload(initialLoad bool) bool {
 		Consts:           make(map[string]string, numConsts),
 		PublicFunctions:  make(map[string]FuncComponent, numPubFuncs),
 		PrivateFunctions: make(map[string]FuncComponent, numPrivFuncs),
+		Types:            make([]string, 0, numTypes),
 	}
 	for _, c := range components {
 		for _, imp := range c.Imports {
@@ -155,6 +149,11 @@ func reload(initialLoad bool) bool {
 		utility.AddToMap(combinedComponents.Vars, c.Vars)
 		utility.AddToMap(combinedComponents.PrivateFunctions, c.PrivateFunctions)
 		utility.AddToMap(combinedComponents.PublicFunctions, c.PublicFunctions)
+		// TODO: This checks for an EXACT match, doesn't work for types that have
+		// 		 different properties but matching names
+		for _, typ := range c.Types {
+			utility.AddIfNotExists(&combinedComponents.Types, typ)
+		}
 	}
 
 	functionNames := make([]string, 0, len(combinedComponents.PublicFunctions))
@@ -176,11 +175,17 @@ func reload(initialLoad bool) bool {
 	generatedGoFile := fmt.Sprintf("%s/main.go", generatedGoDir)
 
 	var (
+		// Need to give each SO a unique name, since (I believe) go caches SOs in memory, without a
+		// unique name it'll just use the old file
+		generatedGoFileForReference = fmt.Sprintf("%s/main-%d.go", generatedGoDir, plC)
+		generatedSOPath             = fmt.Sprintf("%s/main-%d.so", generatedGoDir, plC)
+
 		tmpGeneratedGoFileForReference = fmt.Sprintf("%s.tmp", generatedGoFileForReference)
 		tmpGeneratedSOPath             = fmt.Sprintf("%s.tmp", generatedSOPath)
 
 		reloadPlugin bool
 	)
+	plC++
 	_, err = os.Stat(generatedGoFileForReference)
 	if err == nil {
 		err = os.Rename(generatedGoFileForReference, tmpGeneratedGoFileForReference)
@@ -281,7 +286,7 @@ func reloadPluginAndFuncProps(pluginPath string, functionSignatures []FuncCompon
 
 	// Populate local function properties
 	funcNames = make([]string, len(functionSignatures))
-	funcs = make([]CustomFunc, len(functionSignatures))
+	funcs = make([]FuncComponentSignature, len(functionSignatures))
 	for i, fs := range functionSignatures {
 		name := functionNames[i]
 		maybeFnc, err := pl.Lookup(name)
@@ -289,19 +294,12 @@ func reloadPluginAndFuncProps(pluginPath string, functionSignatures []FuncCompon
 			return reloadPlugin, errors.Wrapf(err, "failed to find function in plugin with name '%s'", name)
 		}
 
-		var (
-			fnc func([]any) ([]any, error)
-			ok  bool
-		)
-		if fnc, ok = maybeFnc.(func([]any) ([]any, error)); !ok {
+		if _, ok := maybeFnc.(func([]any) ([]any, error)); !ok {
 			return reloadPlugin, fmt.Errorf("failed to assert function with name '%s', as expected type `func([]any) ([]any, error)`", name)
 		}
 
 		funcNames[i] = name
-		funcs[i] = CustomFunc{
-			FuncComponentSignature: fs,
-			F:                      fnc,
-		}
+		funcs[i] = fs
 	}
 
 	return false, nil

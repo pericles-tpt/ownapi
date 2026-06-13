@@ -15,6 +15,7 @@ type FileComponents struct {
 	Consts           map[string]string
 	PublicFunctions  map[string]FuncComponent
 	PrivateFunctions map[string]FuncComponent
+	Types            []string
 }
 
 type FuncComponent struct {
@@ -145,7 +146,10 @@ func DumbLexer(contents []byte) (FileComponents, error) {
 		// case "goto": // Not valid outside of functions, safe to ignore
 		// case "return": // As above
 		case "type":
-			// TODO: Implement `extractType`
+			var t string
+			i, nlc, t = extractType(i, runes)
+			newlineCount += nlc
+			ret.Types = append(ret.Types, t)
 		default:
 			// Do nothing, for now
 		}
@@ -288,6 +292,10 @@ func extractFunc(i int, runes []rune, commentBuf []rune) (int, int, string, Func
 	}
 	name = string(removeBrackets(nameBuf, nil))
 
+	if name == "main" {
+		return j, nlc, name, val, isPublic, errors.New("cannot use `main` for a custom function")
+	}
+
 	// Collect params
 	var (
 		paramsBuf     = make([]rune, 0, 100)
@@ -426,6 +434,38 @@ func extractFunc(i int, runes []rune, commentBuf []rune) (int, int, string, Func
 
 	isPublic = unicode.IsUpper(rune(name[0]))
 	return j - 1, nlc, name, val, isPublic, nil
+}
+
+func extractType(i int, runes []rune) (int, int, string) {
+	var (
+		j   int
+		nlc int
+
+		foundCurly bool
+		curlies    int
+
+		buf = make([]rune, 0, 100)
+	)
+	buf = append(buf, []rune("type ")...)
+	for j = i; j < len(runes) && (!foundCurly || curlies != 0); j++ {
+		rj, _ := getRuneMaybeIncrementNewlineCount(runes, j, &nlc)
+		buf = append(buf, rj)
+		if foundCurly {
+			switch rj {
+			case '{':
+				curlies++
+			case '}':
+				curlies--
+			}
+			continue
+		}
+
+		if rj == rune('{') {
+			foundCurly = true
+			curlies = 1
+		}
+	}
+	return j - 1, nlc, string(buf)
 }
 
 func assignIfNotForbidden(key, value string, m map[string]string, assignHasEquals bool) error {

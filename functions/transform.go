@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	importWhitelist = []string{"fmt", "strings", "math", "time", "errors"}
+	importWhitelist = []string{"fmt", "strings", "math", "time", "encoding/json", "errors"}
 	typeWhitelist   = []string{"string", "int", "uint", "rune", "byte", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "float32", "float64", "bool", "time.Time", "error"}
 	// Populated on Init()
 	arrayTypeWhitelist = []string{}
@@ -126,6 +126,7 @@ func generateFiles(components FileComponents, inpPaths []string, outPaths []stri
 		components.Imports[i] = fmt.Sprintf(`"%s"`, imp)
 	}
 	sb.WriteString(fmt.Sprintf("import (%s)\n", string(strings.Join(components.Imports, "\n"))))
+	sb.WriteString(fmt.Sprintf("%s\n", strings.Join(components.Types, "\n")))
 
 	sb.WriteString("const (\n")
 	for k, v := range components.Consts {
