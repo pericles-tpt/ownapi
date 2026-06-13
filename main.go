@@ -27,7 +27,8 @@ import (
 func main() {
 	var err error
 
-	err = config.LoadConfigs("_config/startup.json", "_config/runtime.json")
+	runtimeConfigPath := "_config/runtime.json"
+	err = config.LoadConfigs("_config/startup.json", runtimeConfigPath)
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +61,7 @@ func main() {
 		panic(err)
 	}
 
-	err = secrets.PromptForMissingSecretsWipePW(secretNames, pipelinesBytes, secretsPath, pw)
+	err = secrets.PromptForMissingSecretsWipePW(secretNames, pipelinesBytes, secretsPath, pw, runtimeConfigPath)
 	if err != nil {
 		panic(err)
 	}
