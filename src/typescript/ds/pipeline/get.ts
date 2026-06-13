@@ -8,6 +8,8 @@ export function getNodeTypeLabel(type: NodeType): string {
             return "USB COPY"
         case NodeType.Custom:
             return "CUSTOM"
+        case NodeType.Binary:
+            return "BINARY"
         default:
             return "UNKNOWN TYPE"
     }

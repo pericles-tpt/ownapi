@@ -2,11 +2,10 @@ package pipelines
 
 import (
 	"fmt"
-	"reflect"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/pericles-tpt/ownapi/config"
 	log2 "github.com/pericles-tpt/ownapi/log"
 	"github.com/pericles-tpt/ownapi/node"
 	"github.com/pkg/errors"
@@ -18,9 +17,8 @@ var (
 
 func Run(name *string, idx *int, maybeTriggeredByFirstNodeDuration *time.Duration) (bool, error) {
 	var (
-		propMap = map[string]any{}
-		exists  bool
-		err     error
+		exists bool
+		err    error
 	)
 	if name == nil && idx == nil {
 		return exists, errors.New("at least one of `name` or `idx` must be non-nil")
@@ -42,6 +40,9 @@ func Run(name *string, idx *int, maybeTriggeredByFirstNodeDuration *time.Duratio
 			return exists, errors.Wrapf(err, "failed to get pipeline by idx: %d", *idx)
 		}
 	}
+
+	// Initialise propMap from dynamic config
+	propMap := config.GetInitPropsForPipeline(pl.Name)
 
 	propMap, exists, err = runPipeline(pl, *idx, propMap, maybeTriggeredByFirstNodeDuration)
 	if err != nil {
@@ -113,6 +114,7 @@ func runPipeline(pipeline Pipeline, idx int, propMap map[string]any, maybeTrigge
 			return propMap, cancelRun, errors.Wrap(err, "failed to UpdateKeys after auto-trigger first node")
 		}
 		sn = 1
+
 	}
 
 	start := time.Now()
@@ -178,16 +180,6 @@ func runPipeline(pipeline Pipeline, idx int, propMap map[string]any, maybeTrigge
 		if len(errs) > 0 {
 			fmt.Printf("Error(s) occurred at pipeline stage %d: %v", sn, errs)
 			break
-		}
-
-		fmt.Printf("propMap types at END of stage: %d\n", sn)
-		for k, v := range propMap {
-			to := reflect.TypeOf(v).String()
-			if strings.HasPrefix(to, "[]") || strings.HasPrefix(to, "map[") {
-				fmt.Printf("k: %s, tv: %s\n", k, reflect.TypeOf(v))
-			} else {
-				fmt.Printf("k: %s, tv: %v\n", k, v)
-			}
 		}
 
 		took := time.Since(bef).Microseconds()

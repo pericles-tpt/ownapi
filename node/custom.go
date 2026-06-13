@@ -63,14 +63,6 @@ func CreateCustomNode(propMap map[string]any, cfg CustomNodeConfig) (CustomNode,
 
 func (cn *CustomNode) Trigger(propMap map[string]any, useCache bool) (map[string]any, error) {
 	var outputMap = map[string]any{}
-	newCfg, err := utility.OverrideTypeFromJSONMap(cn.Config, propMap)
-	if err != nil {
-		return outputMap, errors.Wrap(err, "failed to override `cfg` with map values")
-	}
-	defer func(cn *CustomNode, oldCfg CustomNodeConfig) {
-		cn.Config = oldCfg
-	}(cn, cn.Config)
-	cn.Config = newCfg
 
 	f, err := functions.GetFunc(cn.Config.Name)
 	if err != nil {
@@ -84,6 +76,7 @@ func (cn *CustomNode) Trigger(propMap map[string]any, useCache bool) (map[string
 		}
 		params = append(params, propMap[key])
 	}
+
 	res, err := f(params)
 	if err != nil {
 		return outputMap, errors.Wrapf(err, "failed to execute func '%s'", cn.Config.Name)

@@ -189,7 +189,7 @@ func generateFunction(name string, f FuncComponent, isPublic bool) (string, erro
 		assertions = make([]string, 0, len(f.SigParams.Names)+1)
 		assertions = append(assertions, fmt.Sprintf("if len(args) != %d {\n return []any{}, fmt.Errorf(\"invalid number of args provided, exp: %d, got %%d\", len(args)) \n}\n", len(paramNames), len(paramNames)))
 		for i, pt := range paramTypes {
-			assertions = append(assertions, fmt.Sprintf("var %s %s\nif %s, ok = args[%d].(%s); !ok {\nreturn []any{}, fmt.Errorf(\"failed to parse arg %d with name '%s', expected type: %s\")\n}\n", paramNames[i], pt, paramNames[i], i, pt, i, paramNames[i], pt))
+			assertions = append(assertions, fmt.Sprintf("var %s %s\nif %s, ok = args[%d].(%s); !ok {\nreturn []any{}, fmt.Errorf(\"failed to parse arg %d with name '%s', exp type: %s, val: %%v\", args[%d])\n}\n", paramNames[i], pt, paramNames[i], i, pt, i, paramNames[i], pt, i))
 		}
 	}
 

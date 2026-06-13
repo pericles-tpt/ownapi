@@ -96,6 +96,10 @@ func CreateHTTPNode(propMap map[string]any, cfg HttpNodeConfig) (HTTPNode, error
 
 func (hn *HTTPNode) Trigger(propMap map[string]any, useCache bool) (map[string]any, error) {
 	var outputMap = map[string]any{}
+	for k, v := range propMap {
+		outputMap[k] = v
+	}
+
 	newCfg, err := utility.OverrideTypeFromJSONMap(hn.Config, propMap)
 	if err != nil {
 		return outputMap, errors.Wrap(err, "failed to override `cfg` with map values")
