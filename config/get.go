@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -69,4 +70,40 @@ func GetWebsocketSleepUS() int64 {
 }
 func GetLogFilesizeLimit() int64 {
 	return cfgR.Log.FileSizeLimit
+}
+func GetInitPropsForPipeline(pipelineName string) map[string]any {
+	var (
+		ret = map[string]any{}
+
+		globals  = cfgR.InitProps[""]
+		pipeline = cfgR.InitProps[pipelineName]
+	)
+
+	for k, v := range globals {
+		pre := getPrefix(k)
+		// if sv, ok := v.(string); ok {
+		// 	_, v, _ = secrets.MaybeReplaceSecretsInString(sv)
+		// }
+		ret[fmt.Sprintf("%s:%s", pre, k)] = v
+	}
+	for k, v := range pipeline {
+		pre := getPrefix(k)
+		// if sv, ok := v.(string); ok {
+		// 	_, v, _ = secrets.MaybeReplaceSecretsInString(sv)
+		// }
+		ret[fmt.Sprintf("%s:%s", pre, k)] = v
+	}
+	return ret
+}
+
+func getPrefix(key string) string {
+	parts := strings.Split(key, ":")
+	if len(parts) == 1 {
+		return "input"
+	}
+	_, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return "input"
+	}
+	return "output"
 }

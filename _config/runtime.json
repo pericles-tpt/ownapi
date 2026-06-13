@@ -2,5 +2,20 @@
     "webSocketSleepUS": 2500,
     "log": {
         "fileSizeLimit": 1000000
+    },
+    "initProps": {
+        "": {
+            "hello": "world",
+            "something": false
+        },
+        "garmin": {
+            "blah": 314159
+        },
+        "weather": {
+            "postcode": "secret:postcode",
+            "1:postcode": "secret:postcode",
+            "1:suburb": "secret:suburb", 
+            "1:state": "secret:state"
+        }
     }
 }

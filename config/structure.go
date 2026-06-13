@@ -22,6 +22,7 @@ type ConfigRuntime struct {
 	Log              struct {
 		FileSizeLimit int64 `json:"fileSizeLimit"`
 	} `json:"log"`
+	InitProps map[string]map[string]any `json:"initProps"`
 }
 
 type CorsOptions struct {
